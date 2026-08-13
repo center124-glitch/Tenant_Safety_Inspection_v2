@@ -1,6 +1,42 @@
 <!DOCTYPE html>
 <!-- ============================================================
   MallGuard — Tenant Safety & Standards Inspection System
+  Version 13 (v13) — แก้บั๊กกราฟไม่แบ่งครึ่งซ้าย-ขวา
+  ---------------------------------------------------------------
+  [บั๊ก] กราฟบนแดชบอร์ดเรียงลงมาเต็มความกว้างทีละใบ แทนที่จะแบ่งครึ่งซ้าย-ขวา
+
+  สาเหตุ: ไฟล์นี้ใช้ Tailwind แบบ "คอมไพล์ล่วงหน้า" ฝังไว้ใน <style id="tailwind-embedded">
+  ซึ่งมีเฉพาะคลาสที่ถูกใช้อยู่ ณ ตอนที่คอมไพล์เท่านั้น ไม่มีตัวคอมไพล์ทำงานตอนรัน
+  ใน v11/v12 ผมเปลี่ยนไปใช้ `lg:grid-cols-2` และ `lg:hidden` ซึ่ง "ไม่มีอยู่" ในชุดที่คอมไพล์ไว้
+  (ชุดนั้นมีแค่ xl:grid-cols-12 และ xl:col-span-*) เบราว์เซอร์จึงไม่รู้จักคลาสเหล่านี้เลย
+  ผลคือตกกลับไปใช้ grid-cols-1 = เรียงลงมาทีละใบเต็มความกว้าง
+
+  วิธีแก้: เขียน CSS ของตัวเองสำหรับ layout ทั้งหมด (.dash-charts / .lg-only-hide)
+  ไม่พึ่งคลาส Tailwind ที่อาจไม่ถูกคอมไพล์มา — เป็นหลักการเดียวกับที่ใช้กับ .check-* และ .rpt-*
+  พร้อมเพิ่มสคริปต์ตรวจสอบอัตโนมัติในชุดทดสอบ กันไม่ให้พลาดซ้ำในอนาคต
+
+  Version 12 (v12) — จัดสัดส่วนกราฟแดชบอร์ดใหม่ + ขยายเป็น Top 10
+  ---------------------------------------------------------------
+  1. ย้าย "🎯 อัตราผ่านรายข้อตรวจ" ขึ้นไปอยู่แถวเดียวกับ "🍩 สัดส่วนผลการตรวจ"
+     เหตุผลเชิงเนื้อหา: ทั้งสองตัวเป็นกราฟ "ภาพรวมรอบปัจจุบัน" เหมือนกัน
+     (ผลออกมาเป็นอย่างไร / ตกเพราะข้อไหน) ควรอ่านคู่กัน
+     ส่วนแถวล่างเหลือกราฟ "เชิงเปรียบเทียบ" คือแนวโน้มรายวันกับคะแนนแยกโซน
+     ทั้งสองตัวเป็นกราฟแกนยาว ได้พื้นที่กว้างขึ้นทำให้ป้ายกำกับไม่ทับกัน
+  2. ตารางร้านค้าที่ต้องปรับปรุง ขยายจาก Top 5 เป็น Top 10
+     พร้อมไฮไลต์ 3 อันดับแรกด้วยเหรียญ และแยกสีอันดับที่วิกฤต
+
+  Version 11 (v11) — จัดหน้าแดชบอร์ดใหม่ + รายงานสรุปเป็นแนวนอน
+  ---------------------------------------------------------------
+  1. ย้ายตัวควบคุม "รายงานสรุปตามรอบเวลา" ขึ้นไปอยู่แถวเดียวกับหัวข้อหน้า
+     ประหยัดพื้นที่แนวตั้งไปราว 110px ทำให้เห็น KPI ได้ตั้งแต่เปิดหน้าโดยไม่ต้องเลื่อน
+     บนมือถือยุบเป็นปุ่มเดียว กดแล้วค่อยกางตัวเลือกออก (กันหัวหน้าแน่นจนอ่านไม่ออก)
+  2. ปรับ UI แดชบอร์ดทั้งหน้า: การ์ด KPI แน่นขึ้น ตัวเลขใหญ่ชัด เพิ่มแถบสรุปเชิงบริหาร
+     กราฟจัดวางตามลำดับความสำคัญ และตาราง Top 5 อ่านง่ายขึ้นบนจอแคบ
+  3. รายงานสรุปรายสัปดาห์/เดือน/ปี เปลี่ยนเป็น A4 แนวนอน (1123 x 794)
+     - จัดเป็น 3 คอลัมน์ ทำให้ข้อมูลที่เดิมต้องแยก 2 หน้า จบในหน้าเดียว
+     - เหมาะกับการฉายขึ้นจอประชุม ซึ่งเป็นอัตราส่วน 16:9 อยู่แล้ว
+     - ใบรายงานรายร้าน (ที่ต้องเซ็นและเก็บเข้าแฟ้ม) ยังเป็นแนวตั้งเหมือนเดิม
+
   Version 10 (v10) — รายงานสรุปตามรอบเวลา + ตรวจทานระบบรอบที่สอง
   ---------------------------------------------------------------
   [ฟีเจอร์หลัก] รายงานสรุปผลการตรวจ รายสัปดาห์ / รายเดือน / รายปี
@@ -314,12 +350,17 @@ body::before{
 
 /* KPI Card แบบ product card พร้อมแอนิเมชันไล่เข้าทีละใบ (stagger) */
 .kpi-card{
-  border-radius:22px; padding:20px; color:#fff; position:relative; overflow:hidden;
+  border-radius:20px; padding:16px 17px; color:#fff; position:relative; overflow:hidden;
   box-shadow: 0 14px 30px -12px rgba(0,0,0,.35);
   transition: transform .2s ease, box-shadow .2s ease;
   animation: kpiPopIn .5s cubic-bezier(.22,1,.36,1) backwards;
+  display:flex; flex-direction:column; justify-content:center; min-height:104px;
 }
-.kpi-card:hover{ transform: translateY(-6px) scale(1.015); box-shadow: 0 20px 36px -14px rgba(0,0,0,.4); }
+/* ยกการ์ดขึ้นตอน hover เฉพาะอุปกรณ์ที่มีเมาส์จริง
+   บนจอสัมผัส :hover จะค้างหลังแตะ ทำให้การ์ดลอยค้างอยู่อย่างนั้นจนกว่าจะแตะที่อื่น */
+@media (hover:hover){
+  .kpi-card:hover{ transform: translateY(-5px) scale(1.012); box-shadow: 0 20px 36px -14px rgba(0,0,0,.42); }
+}
 .kpi-card::after{
   content:''; position:absolute; right:-30px; top:-30px; width:140px; height:140px; border-radius:50%;
   background: rgba(255,255,255,.14);
@@ -327,7 +368,7 @@ body::before{
 .kpi-card.kpi-alert{ animation: kpiPopIn .5s cubic-bezier(.22,1,.36,1) backwards, kpiPulse 2.2s ease-in-out infinite 1s; }
 @keyframes kpiPopIn{ from{ opacity:0; transform:translateY(14px) scale(.96);} to{ opacity:1; transform:translateY(0) scale(1);} }
 @keyframes kpiPulse{ 0%,100%{ box-shadow:0 14px 30px -12px rgba(0,0,0,.35), 0 0 0 0 rgba(239,68,68,.45);} 50%{ box-shadow:0 14px 30px -12px rgba(0,0,0,.35), 0 0 0 10px rgba(239,68,68,0);} }
-.kpi-num{ font-size:34px; font-weight:800; line-height:1; }
+.kpi-num{ font-size:31px; font-weight:800; line-height:1.05; letter-spacing:-.5px; }
 /* การ์ดที่พื้นเป็นสีทอง/อำพัน ต้องใช้ตัวอักษรสีเข้ม — ตัวขาวบนพื้นทองมีค่า contrast
    ราว 2:1 ซึ่งต่ำกว่าเกณฑ์ WCAG มาก อ่านไม่ออกเลยเมื่อดูกลางแดดผ่านจอมือถือ */
 .kpi-card.kpi-gold{ color:#17120A; }
@@ -430,6 +471,47 @@ table.dataTable tbody td{ border-color:var(--border) !important; }
 /* ใบรายงานคงพื้นสีขาวเสมอ (ไม่ผูกกับ Light/Dark ของแอป) เพราะเป็นเอกสารสำหรับ
    พิมพ์ลงกระดาษและแนบเป็นหลักฐานประกอบใบเตือนผู้เช่า — พิมพ์พื้นดำจะเปลืองหมึกและอ่านยาก
    จึงใช้โทน "ขาวงาช้าง + เส้นทอง + หัวกระดาษดำ-ทอง" แทน ให้ดูเป็นทางการระดับองค์กร */
+/* ---------- หน้ากระดาษ A4 แนวนอน (1123 x 794) สำหรับรายงานสรุปตามรอบ ----------
+   ทำไมรายงานสรุปต้องเป็นแนวนอน แต่ใบรายงานรายร้านยังเป็นแนวตั้ง:
+     - รายงานสรุปมีตารางหลายชุดวางเทียบกัน และมักถูกฉายขึ้นจอประชุม
+       ซึ่งเป็นอัตราส่วน 16:9 อยู่แล้ว แนวนอนจึงเต็มจอพอดีไม่มีขอบดำข้าง
+     - ใบรายงานรายร้านต้องพิมพ์ เซ็นชื่อ และเก็บเข้าแฟ้มเอกสาร ซึ่งเป็นแนวตั้งทั้งหมด
+   ความกว้างที่เพิ่มขึ้นทำให้จัด 3 คอลัมน์ได้ ข้อมูลที่เดิมต้องแยก 2 หน้าจึงจบในหน้าเดียว */
+.report-page-land{
+  width:1123px; min-height:794px; background:#fff; color:#17150F; font-family:'Prompt',sans-serif;
+  box-sizing:border-box; padding:26px 30px 48px; position:relative;
+}
+.report-page-land::before{
+  content:''; position:absolute; left:0; top:0; bottom:0; width:7px;
+  background-image:linear-gradient(180deg,#0B0B0D 0%,#A8791A 45%,#F97316 100%);
+}
+.report-page-land + .report-page-land{ margin-top:22px; }
+.report-page-land .report-footer{ left:30px; right:30px; bottom:18px; }
+
+/* โครง 3 คอลัมน์ของรายงานแนวนอน — สัดส่วนตามน้ำหนักของข้อมูล
+   ซ้าย  (ตัวเลขหลัก + สัดส่วน + โซน) ให้กว้างพอใส่การ์ด KPI 2x2
+   กลาง  (หัวข้อที่ตกบ่อย) กว้างที่สุดเพราะมีแถบสัดส่วน
+   ขวา   (ร้านที่ต้องติดตาม) เป็นรายการที่ยาวที่สุด */
+.rpt-land-grid{ display:grid; grid-template-columns:300px 1fr 1fr; gap:14px; align-items:start; }
+.rpt-land-col{ display:flex; flex-direction:column; gap:10px; min-width:0; }
+.rpt-land-grid .rpt-kpi-grid{ grid-template-columns:repeat(2,1fr); margin-bottom:0; }
+.rpt-land-grid .rpt-table{ font-size:11px; }
+.rpt-land-grid .rpt-td{ padding:5px 8px; }
+.rpt-land-grid .rpt-th{ padding:5px 8px; font-size:10.5px; }
+.rpt-land-grid .report-section-title{ margin-bottom:6px; font-size:12px; }
+.rpt-land-grid .rpt-kpi{ padding:7px 9px; }
+.rpt-land-grid .rpt-kpi-value{ font-size:20px; }
+.rpt-land-grid .rpt-criteria{ margin-bottom:0; padding:7px 11px; }
+.rpt-land-grid .rpt-stackbar{ height:17px; }
+.rpt-land-grid .rpt-legend{ gap:11px; font-size:10px; }
+.rpt-land-grid .rpt-minibar{ width:60px; }
+.rpt-nowrap{ white-space:nowrap; }
+/* ช่องลงนามในรายงานแนวนอน วางเรียงลงมาในคอลัมน์ขวา ไม่ใช่เรียงข้างกันแบบแนวตั้ง
+   เพราะคอลัมน์กว้างแค่ ~1/3 หน้า ถ้าวางข้างกันช่องจะแคบจนเซ็นไม่ได้จริง */
+.rpt-land-sign{ display:flex; flex-direction:column; gap:14px; margin-top:auto; padding-top:12px; }
+.rpt-land-sign .report-sign-box{ text-align:center; }
+.rpt-land-sign .report-sign-line{ border-bottom:1px solid #9A8B6C; margin:26px 20px 5px; }
+
 /* หน้ากระดาษ A4 (794x1123px @96dpi)
    ระยะห่างทุกจุดถูกบีบให้ใบรายงานที่มีรูปหลักฐานไม่เกิน 8 รูปจบในหน้าเดียว
    ถ้าเนื้อหายาวกว่านั้น หน้ากระดาษจะยืดลงและท้ายกระดาษเลื่อนตามไปเอง (ไม่ทับเนื้อหา)
@@ -505,6 +587,102 @@ table.dataTable tbody td{ border-color:var(--border) !important; }
 .report-sign-name{ font-size:11.5px; font-weight:700; color:#2A2415; margin-top:1px; min-height:15px; }
 
 .report-preview-loading{ padding:60px 20px; text-align:center; font-size:14px; color:var(--text-muted); }
+
+/* ================================================================
+   ===============  ผังกราฟบนแดชบอร์ด (v13)  ======================
+
+   ⚠️ บทเรียนสำคัญของไฟล์นี้ (พลาดมาแล้วใน v11/v12):
+   Tailwind ในไฟล์นี้ถูก "คอมไพล์ล่วงหน้า" แล้วฝังไว้ใน <style id="tailwind-embedded">
+   ซึ่งบรรจุเฉพาะคลาสที่ถูกใช้อยู่ ณ ตอนที่คอมไพล์เท่านั้น และไม่มีตัวคอมไพล์ทำงานตอนรัน
+   การใส่คลาสใหม่ที่ไม่เคยถูกคอมไพล์ (เช่น lg:grid-cols-2, lg:hidden) จะ "ไม่มีผลใดๆ"
+   และล้มเหลวแบบเงียบ — ไม่มี error ให้เห็น มีแต่ layout ที่เพี้ยนไปจากที่ออกแบบ
+   ดังนั้น layout ใหม่ทั้งหมดต้องเขียนเป็น CSS ของตัวเอง เหมือนที่ทำกับ .check-* และ .rpt-*
+
+   ผังกราฟ: มือถือ/แท็บเล็ตแนวตั้ง = เรียงลงมาทีละใบ (กราฟแคบเกินไปถ้าแบ่งครึ่ง)
+            ตั้งแต่ 1024px ขึ้นไป = แบ่งครึ่งซ้าย-ขวาเท่ากัน
+   ================================================================ */
+.dash-charts{ display:grid; grid-template-columns:1fr; gap:1rem; }
+@media (min-width:1024px){
+  .dash-charts{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+/* จอกว้างมาก ให้กราฟสูงขึ้นเล็กน้อยเพราะพื้นที่แนวนอนเหลือเฟือ */
+@media (min-width:1600px){ .dash-charts{ gap:1.15rem; } }
+
+/* ================================================================
+   ===============  หัวหน้าแดชบอร์ด + ตัวควบคุมรายงาน (v11)  =======
+   วางชื่อหน้ากับตัวควบคุมรายงานไว้แถวเดียวกัน แล้วให้ตัวควบคุมยุบตัวตามความกว้าง
+   จอกว้าง  -> กางเต็ม (ชนิดรอบ · รอบ · ปุ่มออกรายงาน · Excel · เมนูเพิ่มเติม)
+   จอกลาง   -> ซ่อนป้ายกำกับ เหลือเฉพาะตัวเลือกและปุ่ม
+   มือถือ   -> ยุบเป็นปุ่มเดียว กดแล้วกางลงมาเป็นแผงเต็มความกว้าง
+   ================================================================ */
+.dash-head{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.dash-head-title{ flex:1 1 auto; min-width:220px; }
+
+.period-bar{
+  display:flex; align-items:center; gap:8px; flex-wrap:nowrap;
+  background:var(--surface); border:1px solid var(--border); border-radius:16px;
+  padding:7px 9px; box-shadow:var(--shadow);
+}
+.period-bar-title{ font-weight:700; font-size:13px; padding-left:5px; white-space:nowrap; color:var(--text); }
+.period-select{
+  width:auto !important; min-height:40px !important; padding:0 30px 0 11px !important;
+  font-size:13px !important; font-weight:600; border-radius:11px !important;
+  background-color:var(--surface-2) !important; max-width:180px;
+}
+.period-go{ min-height:40px !important; padding:0 15px !important; font-size:13px !important; white-space:nowrap; }
+.period-xls{ min-height:40px !important; padding:0 12px !important; font-size:15px !important; }
+.period-more{ position:relative; }
+.period-more-btn{ min-height:40px !important; padding:0 11px !important; font-size:16px !important; line-height:1; }
+
+/* เมนู "ตัวเลือกเพิ่มเติม" — เก็บปุ่มที่ใช้ไม่บ่อย (รายงานภาพรวมทั้งหมด / Excel ทั้งหมด)
+   ไว้ในเมนู แทนที่จะวางเรียงจนแถบหัวยาวเกินและเบียดชื่อหน้า */
+.dash-menu{
+  position:absolute; right:0; top:calc(100% + 7px); z-index:40; min-width:220px;
+  background:var(--surface); border:1px solid var(--border); border-radius:14px;
+  box-shadow:0 18px 40px -14px rgba(0,0,0,.55); padding:6px; display:flex; flex-direction:column; gap:2px;
+}
+.dash-menu button{
+  text-align:left; padding:10px 12px; border-radius:10px; font-size:13px; font-weight:600;
+  color:var(--text); background:transparent; min-height:42px; touch-action:manipulation;
+}
+.dash-menu button:hover{ background:rgba(201,151,27,.12); color:var(--gold-text); }
+
+/* ปุ่มยุบแถบรายงาน — แสดงเฉพาะจอต่ำกว่า 1024px (ควบคุมด้วย media query ด้านล่าง)
+   ห้ามใช้คลาส lg:hidden ของ Tailwind เพราะไม่ได้ถูกคอมไพล์มาในไฟล์นี้ */
+.period-toggle{ display:none !important; }
+.period-caret{ font-size:11px; opacity:.7; transition:transform .2s ease; }
+.period-toggle.is-open .period-caret{ transform:rotate(180deg); }
+
+/* บรรทัดสรุปย่อของรอบที่เลือก */
+.period-summary{
+  font-size:12.5px; line-height:1.7; color:var(--text-muted);
+  background:var(--surface); border:1px solid var(--border); border-left:4px solid var(--gold);
+  border-radius:13px; padding:9px 15px;
+}
+.period-summary b{ color:var(--text); }
+
+/* จอกลาง (แท็บเล็ตแนวนอน / โน้ตบุ๊กจอเล็ก): ตัดป้ายกำกับออกให้เหลือแต่ตัวควบคุม */
+@media (max-width:1279px){
+  .period-bar-title{ display:none; }
+  .period-select{ max-width:150px; }
+}
+
+/* มือถือและแท็บเล็ตแนวตั้ง: ยุบเป็นปุ่มเดียว กดแล้วกางลงมาเต็มความกว้าง */
+@media (max-width:1023px){
+  .period-toggle{ display:inline-flex !important; }
+  .dash-head{ gap:10px; }
+  .period-bar{
+    display:none; order:99; width:100%; flex-wrap:wrap; padding:11px;
+    border-radius:18px; animation:periodBarIn .22s ease;
+  }
+  .period-bar.is-open{ display:flex; }
+  .period-select{ flex:1 1 140px; max-width:none; }
+  .period-go{ flex:1 1 100%; order:5; }
+  .period-xls, .period-more-btn{ flex:0 0 auto; }
+  .period-more{ order:6; }
+  .dash-menu{ right:auto; left:0; }
+}
+@keyframes periodBarIn{ from{ opacity:0; transform:translateY(-6px);} to{ opacity:1; transform:translateY(0);} }
 
 /* ---------- รายงานสรุปตามรอบเวลา v10 ---------- */
 .rpt-kpi-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:9px; margin-bottom:13px; }
@@ -675,6 +853,9 @@ table.dataTable tbody td{ border-color:var(--border) !important; }
 /* กล่องกราฟ: กำหนดความสูงคงที่ + ให้ Chart.js ยืดเต็ม (maintainAspectRatio:false)
    เพื่อให้ layout แดชบอร์ดเต็มจอสวยงามเท่ากันทุกจอ ไม่ยืดหดตามสัดส่วน canvas */
 .chart-box{ position:relative; height:280px; }
+/* ความสูงกราฟไล่ตามขนาดจอ — บนมือถือ 280px สูงเกินไปจนต้องเลื่อนหลายครั้งกว่าจะผ่านกราฟทั้ง 4 ตัว */
+@media (max-width:639px){ .chart-box{ height:225px; } }
+@media (min-width:1600px){ .chart-box{ height:310px; } }
 .chart-box-tall{ position:relative; height:320px; }
 @media (max-width:768px){ .chart-box, .chart-box-tall{ height:240px; } }
 
@@ -766,10 +947,10 @@ main{ min-width:0; max-width:100%; }
    ============================================================ */
 
 /* --- การ์ด KPI: ให้ไล่จำนวนคอลัมน์ตามความกว้างจริง ไม่ใช่ยึด breakpoint เดียว --- */
-#kpiRow{ display:grid; gap:14px; grid-template-columns:repeat(2,minmax(0,1fr)); }
-@media (min-width:700px){  #kpiRow{ grid-template-columns:repeat(3,minmax(0,1fr)); } }
-@media (min-width:1024px){ #kpiRow{ grid-template-columns:repeat(4,minmax(0,1fr)); } }
-@media (min-width:1600px){ #kpiRow{ grid-template-columns:repeat(8,minmax(0,1fr)); gap:16px; } }
+#kpiRow{ display:grid; gap:12px; grid-template-columns:repeat(2,minmax(0,1fr)); }
+@media (min-width:640px){  #kpiRow{ grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media (min-width:1024px){ #kpiRow{ grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; } }
+@media (min-width:1600px){ #kpiRow{ grid-template-columns:repeat(8,minmax(0,1fr)); gap:14px; } }
 
 /* --- มือถือจอเล็กมาก (iPhone SE / Android 360px): บีบตัวอักษรลงแต่ยังกดง่าย --- */
 @media (max-width:400px){
@@ -841,6 +1022,11 @@ main{ min-width:0; max-width:100%; }
 .table-scroll tbody tr:nth-child(even){ background:rgba(201,151,27,.05); }
 .table-scroll tbody tr:hover{ background:rgba(201,151,27,.1); }
 #top5Table tbody tr:hover{ background:rgba(201,151,27,.1); }
+/* ไฮไลต์ 3 อันดับแรกด้วยแถบทองบางๆ ด้านซ้าย — เน้นโดยไม่ต้องใช้พื้นหลังทึบ
+   ซึ่งจะไปกลบสีของ chip สถานะที่อยู่ในแถวเดียวกัน */
+#top5Table tbody tr.top-rank td:first-child{ box-shadow: inset 3px 0 0 var(--gold); }
+#top5Table tbody tr.top-rank{ background:rgba(201,151,27,.05); }
+#top5Table td{ padding-top:9px; padding-bottom:9px; }
 
 /* --- ป้องกันภาพ/แคนวาสล้นกรอบบนจอแคบทุกกรณี --- */
 img, canvas, svg{ max-width:100%; }
@@ -1021,73 +1207,98 @@ input:focus, select:focus, textarea:focus{ background:var(--bg-2); }
 
     <!-- ============ PAGE: DASHBOARD ============ -->
     <section id="page-dashboard" class="page space-y-5">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 class="text-2xl font-extrabold">ภาพรวมการตรวจประเมิน</h1>
+      <!-- แถบหัวหน้าแดชบอร์ด: ชื่อหน้า + ตัวควบคุมรายงานตามรอบ อยู่แถวเดียวกัน
+           เดิมแถบรายงานเป็นการ์ดเต็มความกว้างแยกอีกก้อน กินพื้นที่แนวตั้งราว 110px
+           ทำให้บนโน้ตบุ๊กจอ 768px ต้องเลื่อนลงก่อนถึงจะเห็นการ์ด KPI แถวแรก -->
+      <div class="dash-head">
+        <div class="dash-head-title">
+          <h1 class="text-2xl font-extrabold leading-tight">ภาพรวมการตรวจประเมิน</h1>
           <p class="text-muted text-sm" id="dashDateLabel"></p>
         </div>
-        <div class="flex gap-2">
-          <button class="btn btn-outline" onclick="previewDashboardReport()">👁️ ภาพรวมทั้งหมด</button>
-          <button class="btn btn-outline" onclick="exportDashboardExcel()">📊 Export Excel</button>
-        </div>
-      </div>
 
-      <!-- รายงานสรุปตามรอบเวลา — วางไว้บนสุดของแดชบอร์ดเพราะเป็นสิ่งที่หัวหน้าแผนก
-           ต้องหยิบไปใช้ประชุมประจำสัปดาห์/เดือนบ่อยที่สุด ไม่ควรต้องเลื่อนหา -->
-      <div class="surface rounded-2xl p-4">
-        <div class="flex flex-wrap items-center gap-3">
-          <div class="font-bold text-sm flex items-center gap-2 shrink-0">📅 รายงานสรุปตามรอบเวลา</div>
-          <select id="periodType" class="!w-auto !py-2 !text-sm" onchange="refreshPeriodOffsetOptions()">
+        <!-- มือถือ: ยุบเป็นปุ่มเดียว กดแล้วค่อยกางตัวเลือกออก กันหัวหน้าแน่นจนอ่านไม่ออก -->
+        <button type="button" class="btn btn-outline period-toggle" onclick="togglePeriodBar()">
+          📅 <span id="periodToggleLabel">รายงานสรุป</span> <span class="period-caret">▾</span>
+        </button>
+
+        <div class="period-bar" id="periodBar">
+          <div class="period-bar-title">📅 รายงานสรุป</div>
+          <select id="periodType" class="period-select" onchange="refreshPeriodOffsetOptions()" aria-label="ชนิดรอบรายงาน">
             <option value="week">รายสัปดาห์</option>
             <option value="month" selected>รายเดือน</option>
             <option value="year">รายปี</option>
           </select>
-          <select id="periodOffset" class="!w-auto !py-2 !text-sm" onchange="updatePeriodSummaryLine()"></select>
-          <div class="flex gap-2 ml-auto flex-wrap">
-            <button class="btn btn-outline !min-h-[40px] !py-1.5 text-sm" onclick="exportPeriodicExcel()">📊 Excel</button>
-            <button class="btn btn-grad !min-h-[40px] !py-1.5 text-sm" style="--g1:var(--grad-1a);--g2:var(--grad-1b);" onclick="previewPeriodicReport()">📄 ออกรายงาน</button>
+          <select id="periodOffset" class="period-select" onchange="updatePeriodSummaryLine()" aria-label="เลือกรอบเวลา"></select>
+          <button class="btn btn-grad period-go" style="--g1:var(--grad-1a);--g2:var(--grad-1b);" onclick="previewPeriodicReport()">📄 ออกรายงาน</button>
+          <button class="btn btn-outline period-xls" onclick="exportPeriodicExcel()" title="ดาวน์โหลดข้อมูลรอบนี้เป็น Excel 3 ชีต">📊</button>
+          <div class="period-more">
+            <button type="button" class="btn btn-outline period-more-btn" onclick="toggleDashMenu()" title="ตัวเลือกเพิ่มเติม">⋯</button>
+            <div class="dash-menu js-hidden" id="dashMenu">
+              <button type="button" onclick="toggleDashMenu(); previewDashboardReport();">👁️ รายงานภาพรวมทั้งหมด</button>
+              <button type="button" onclick="toggleDashMenu(); exportDashboardExcel();">📊 Export Excel ทั้งหมด</button>
+            </div>
           </div>
         </div>
-        <div id="periodSummaryLine" class="text-xs text-muted mt-3 pt-3 border-t border-soft"></div>
       </div>
 
-<!-- แถว KPI 8 ใบ: มือถือ 2 คอลัมน์ / แท็บเลต 4 / จอคอมกว้าง 4 (2 แถว) เต็มความกว้างแดชบอร์ด -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="kpiRow"></div>
+      <!-- บรรทัดสรุปย่อของรอบที่เลือก — เห็นผลทันทีโดยไม่ต้องเปิดรายงานเต็ม -->
+      <div id="periodSummaryLine" class="period-summary"></div>
 
-      <!-- แถวกราฟชุดที่ 1: สัดส่วนผลตรวจ + คะแนนเฉลี่ยแยกโซน -->
-      <div class="grid grid-cols-1 xl:grid-cols-12 gap-4">
-        <div class="surface rounded-2xl p-5 xl:col-span-4">
-          <h3 class="font-bold mb-1">สัดส่วนผลตรวจ (รอบปัจจุบัน)</h3>
-          <p class="text-muted text-xs mb-3">Compliant / Minor / Major Defect</p>
+      <!-- แถว KPI: มือถือ 2 คอลัมน์ · แท็บเล็ต 3 · โน้ตบุ๊ก 4 · จอใหญ่ 8 ใบเรียงแถวเดียว -->
+      <div id="kpiRow"></div>
+
+      <!-- กราฟชุดที่ 1 — "ภาพรวมของรอบปัจจุบัน"
+           วางโดนัทกับเรดาร์คู่กัน เพราะตอบคำถามที่ต่อเนื่องกัน:
+             โดนัท = ผลออกมาเป็นอย่างไร (ผ่านกี่ราย ตกกี่ราย)
+             เรดาร์ = ตกเพราะข้อไหน
+           ทั้งสองเป็นกราฟทรงกลมขนาดใกล้เคียงกัน จึงแบ่งครึ่งเท่ากันแล้วดูสมดุล
+           lg (1024px) เริ่มแบ่ง 2 คอลัมน์ ครอบคลุม iPad แนวนอนและโน้ตบุ๊กจอเล็ก -->
+      <div class="dash-charts">
+        <div class="surface rounded-2xl p-5">
+          <h3 class="font-bold mb-1">🍩 สัดส่วนผลการตรวจ</h3>
+          <p class="text-muted text-xs mb-3">ผ่านมาตรฐาน / ข้อแก้ไขเล็กน้อย / ไม่ผ่านขั้นวิกฤต</p>
           <div class="chart-box"><canvas id="chartDoughnut"></canvas></div>
         </div>
-        <div class="surface rounded-2xl p-5 xl:col-span-8">
-          <h3 class="font-bold mb-1">คะแนนเฉลี่ยแยกโซน (เต็ม 100)</h3>
-          <p class="text-muted text-xs mb-3">เทียบกับเส้นเป้าหมายมาตรฐาน 85 คะแนน</p>
-          <div class="chart-box"><canvas id="chartBar"></canvas></div>
-        </div>
-      </div>
-
-      <!-- แถวกราฟชุดที่ 2 (KPI ใหม่): แนวโน้มคะแนน + อัตราผ่านรายหมวดตรวจ -->
-      <div class="grid grid-cols-1 xl:grid-cols-12 gap-4">
-        <div class="surface rounded-2xl p-5 xl:col-span-7">
-          <h3 class="font-bold mb-1">📈 แนวโน้มคะแนนเฉลี่ยรายวัน (Trend)</h3>
-          <p class="text-muted text-xs mb-3">คะแนนเฉลี่ยของผลตรวจในแต่ละวันตลอดรอบปัจจุบัน</p>
-          <div class="chart-box"><canvas id="chartTrend"></canvas></div>
-        </div>
-        <div class="surface rounded-2xl p-5 xl:col-span-5">
-          <h3 class="font-bold mb-1">🎯 อัตราผ่านรายข้อตรวจ (%)</h3>
+        <div class="surface rounded-2xl p-5">
+          <h3 class="font-bold mb-1">🎯 อัตราผ่านรายข้อตรวจ</h3>
           <p class="text-muted text-xs mb-3">ดูว่าหัวข้อใดใน 6 ข้อที่ร้านค้าตกบ่อยที่สุด</p>
           <div class="chart-box"><canvas id="chartRadar"></canvas></div>
         </div>
       </div>
 
+      <!-- กราฟชุดที่ 2 — "เปรียบเทียบข้ามเวลาและข้ามพื้นที่"
+           ทั้งสองตัวเป็นกราฟแกนยาว (เส้นตามวัน / แท่งตามโซน) ซึ่งต้องการความกว้าง
+           การย้ายเรดาร์ออกไปทำให้สองตัวนี้ได้พื้นที่มากขึ้น ป้ายกำกับแกนจึงไม่ทับกัน
+           แม้จะมีหลายโซนหรือตรวจหลายวันในรอบเดียว -->
+      <div class="dash-charts">
+        <div class="surface rounded-2xl p-5">
+          <h3 class="font-bold mb-1">📈 แนวโน้มคะแนนเฉลี่ยรายวัน</h3>
+          <p class="text-muted text-xs mb-3">คะแนนเฉลี่ยของผลตรวจในแต่ละวันตลอดรอบปัจจุบัน</p>
+          <div class="chart-box"><canvas id="chartTrend"></canvas></div>
+        </div>
+        <div class="surface rounded-2xl p-5">
+          <h3 class="font-bold mb-1">🏢 คะแนนเฉลี่ยแยกโซน</h3>
+          <p class="text-muted text-xs mb-3">เทียบกับเส้นเป้าหมายมาตรฐาน 85 คะแนน (เต็ม 100)</p>
+          <div class="chart-box"><canvas id="chartBar"></canvas></div>
+        </div>
+      </div>
+
       <div class="surface rounded-2xl p-5">
-        <h3 class="font-bold mb-3">🔥 Top 5 ร้านค้าที่ต้องปรับปรุงด่วนที่สุด</h3>
-        <div class="overflow-x-auto">
+        <div class="flex items-baseline justify-between gap-3 flex-wrap mb-1">
+          <h3 class="font-bold">🔥 Top 10 ร้านค้าที่ต้องปรับปรุงด่วนที่สุด</h3>
+          <span class="text-muted text-xs" id="top5Count"></span>
+        </div>
+        <p class="text-muted text-xs mb-3">เรียงจากคะแนนต่ำสุด โดยใช้ผลการตรวจล่าสุดของแต่ละร้าน</p>
+        <div class="table-scroll overflow-x-auto">
           <table class="w-full text-sm" id="top5Table">
             <thead><tr class="text-left text-muted border-b border-soft">
-              <th class="py-2">อันดับ</th><th>ร้านค้า</th><th>โซน</th><th>สถานะ</th><th>คะแนน</th><th>ตรวจล่าสุด</th>
+              <th class="py-2 whitespace-nowrap">อันดับ</th>
+              <th class="whitespace-nowrap">ร้านค้า</th>
+              <th class="whitespace-nowrap">โซน</th>
+              <th class="whitespace-nowrap">สถานะ</th>
+              <th class="whitespace-nowrap">คะแนน</th>
+              <th class="whitespace-nowrap">ข้อที่พบ</th>
+              <th class="whitespace-nowrap">ตรวจล่าสุด</th>
             </tr></thead>
             <tbody id="top5Body"></tbody>
           </table>
@@ -2947,6 +3158,11 @@ function deltaChip(d, unit, goodWhenUp){
    ================================================================ */
 let chartDoughnut, chartBar, chartTrend, chartRadar;
 
+/* จำนวนร้านที่แสดงในตาราง "ร้านค้าที่ต้องปรับปรุงด่วนที่สุด"
+   เก็บเป็นค่าคงที่ตัวเดียว เพราะถูกใช้ทั้งในตารางหน้าจอ หัวข้อตาราง และรายงาน PDF
+   ถ้ากระจายเลข 10 ไว้หลายที่ พอปรับค่าจะหลุดไม่ครบแล้วหัวข้อกับข้อมูลจะไม่ตรงกัน */
+const TOP_STORES_LIMIT = 10;
+
 function computeDashboardStats(){
   const total = TENANTS.filter(t=>t.status==='Active').length;
   const inspectedStoreIds = new Set(INSPECTION_HISTORY.map(h=>h.storeId));
@@ -2974,14 +3190,20 @@ function computeDashboardStats(){
   const zoneLabels = Object.keys(zoneScores);
   const zoneAvgs = zoneLabels.map(z=> zoneScores[z].count ? Math.round(zoneScores[z].sum / zoneScores[z].count) : 0);
 
-  // Top 5 ร้านที่ต้องปรับปรุงด่วนที่สุด (คะแนนต่ำสุด, เอาผลตรวจล่าสุดต่อร้าน)
+  /* ร้านที่ต้องปรับปรุงด่วนที่สุด (คะแนนต่ำสุด, ใช้ผลตรวจล่าสุดต่อร้าน)
+     ขยายจาก 5 เป็น 10 เพราะศูนย์การค้าขนาดกลางมีผู้เช่า 300 ร้าน
+     แค่ 5 อันดับแทบไม่ครอบคลุมร้านที่ตกจริงในแต่ละรอบ ทำให้ตารางนี้ใช้วางแผนงานไม่ได้ */
   const latestByStore = {};
   INSPECTION_HISTORY.forEach(h=>{
     if (!latestByStore[h.storeId] || parseBEDateStr(h.date) > parseBEDateStr(latestByStore[h.storeId].date)) {
       latestByStore[h.storeId] = h;
     }
   });
-  const top5 = Object.values(latestByStore).sort((a,b)=>a.score-b.score).slice(0,5);
+  // เรียงคะแนนต่ำก่อน ถ้าคะแนนเท่ากันให้ major มาก่อน minor (ความรุนแรงเป็นตัวตัดสินลำดับที่สอง)
+  const gradeWeight = { major:0, minor:1, compliant:2 };
+  const top5 = Object.values(latestByStore).sort((a,b)=>
+    (a.score - b.score) || ((gradeWeight[a.grade] ?? 3) - (gradeWeight[b.grade] ?? 3))
+  ).slice(0, TOP_STORES_LIMIT);
 
   /* ---------- KPI เพิ่มเติม (v3) ---------- */
   const nInsp = INSPECTION_HISTORY.length;
@@ -3123,18 +3345,36 @@ function renderDashboard(){
   });
 
   const top5Body = document.getElementById('top5Body');
+  // เหรียญให้ 3 อันดับแรก — สายตาจับได้ทันทีว่าร้านไหนต้องลงไปดูก่อน
+  // โดยไม่ต้องไล่อ่านคะแนนทีละแถว ซึ่งเป็นสิ่งที่หัวหน้าแผนกทำทุกเช้า
+  const medal = ['🥇','🥈','🥉'];
   top5Body.innerHTML = s.top5.map((h,i)=>{
     const tenant = findTenant(h.storeId) || {};
     const g = gradeMeta(h.grade);
-    return `<tr class="border-b border-soft">
-      <td class="py-2 font-bold">#${i+1}</td>
-      <td class="font-semibold">${escapeHtml(tenant.name||h.storeId)}</td>
-      <td>${escapeHtml(tenant.zone||'-')}</td>
+    // ระบุเลขข้อที่บกพร่องไว้ด้วย จะได้รู้ตั้งแต่ในตารางว่าต้องเตรียมเรื่องอะไรไปคุยกับร้าน
+    const defects = getDefectItems(h.checks).map(dd=> dd.item.no).join(', ');
+    const rank = i < 3 ? `${medal[i]} ${i+1}` : `#${i+1}`;
+    return `<tr class="border-b border-soft${i < 3 ? ' top-rank' : ''}">
+      <td class="py-2 font-bold whitespace-nowrap">${rank}</td>
+      <td class="font-semibold">${escapeHtml(tenant.name||h.storeId)}
+        <div class="text-muted" style="font-size:11px;font-weight:400;">${escapeHtml(h.storeId)}</div></td>
+      <td class="whitespace-nowrap">${escapeHtml(tenant.zone||'-')}</td>
       <td><span class="chip" style="background:${g.bg};color:${g.color};">${g.label}</span></td>
-      <td class="font-bold">${h.score}</td>
-      <td class="text-muted">${toBuddhistDateStr(parseBEDateStr(h.date))}</td>
+      <td class="font-bold" style="color:${g.color};">${h.score}</td>
+      <td class="text-muted whitespace-nowrap">${defects ? escapeHtml(defects) : '—'}</td>
+      <td class="text-muted whitespace-nowrap">${toBuddhistDateStr(parseBEDateStr(h.date))}</td>
     </tr>`;
-  }).join('') || `<tr><td colspan="6" class="text-center py-6 text-muted">ยังไม่มีข้อมูลการตรวจ</td></tr>`;
+  }).join('') || `<tr><td colspan="7" class="text-center py-6 text-muted">ยังไม่มีข้อมูลการตรวจ</td></tr>`;
+
+  // บอกจำนวนร้านที่ยังมีข้อบกพร่องค้างอยู่ทั้งหมด ไม่ใช่แค่ที่แสดงในตาราง
+  // เพราะ 10 แถวอาจไม่ครอบคลุมทั้งหมด แล้วผู้ใช้จะเข้าใจผิดว่ามีปัญหาแค่ 10 ร้าน
+  const countEl = document.getElementById('top5Count');
+  if (countEl){
+    const shown = s.top5.length;
+    countEl.textContent = s.openDefects > shown
+      ? `แสดง ${numFmt(shown)} จาก ${numFmt(s.openDefects)} ร้านที่ยังมีข้อบกพร่องค้างอยู่`
+      : (shown ? `ทั้งหมด ${numFmt(shown)} ร้าน` : '');
+  }
 }
 
 /* ================================================================
@@ -4765,7 +5005,8 @@ async function capturePdfElementToPdf(elementId, filename){
 
   // ถ่ายทีละหน้ากระดาษ แล้วประกอบเป็น PDF หลายหน้า
   // ถ้าถ่ายทั้งก้อนรวดเดียวจะได้ PDF หน้าเดียวที่ยาวผิดสัดส่วน พอสั่งพิมพ์จริงจะถูกตัดกลางเอกสาร
-  const pages = Array.from(el.querySelectorAll('.report-page'));
+  // ต้องรับทั้งแนวตั้ง (.report-page) และแนวนอน (.report-page-land) เพราะรายงานสรุปใช้แนวนอน
+  const pages = Array.from(el.querySelectorAll('.report-page, .report-page-land'));
   const targets = pages.length ? pages : [el];
 
   const { jsPDF } = window.jspdf;
@@ -5301,15 +5542,20 @@ function renderDashboardReportContent(s){
     ['ข้อแก้ไขเล็กน้อย', s.counts.minor, '#F59E0B'],
     ['ไม่ผ่านขั้นวิกฤต', s.counts.major, '#EF4444'],
   ];
+  /* แถวในรายงาน PDF — บีบ padding จาก 8px เหลือ 5px เพราะจำนวนแถวเพิ่มจาก 5 เป็น 10
+     ถ้าคงระยะเดิมไว้ ตารางจะสูงขึ้นอีกราว 90px แล้วเนื้อหาจะล้นออกนอกกรอบ A4 */
   const top5Rows = s.top5.map((h,i)=>{
     const tenant = findTenant(h.storeId)||{};
     const g = gradeMeta(h.grade);
-    return `<tr>
-      <td style="padding:8px;border-bottom:1px solid #eee;">#${i+1}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(tenant.name||h.storeId)}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(tenant.zone||'-')}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee;color:${g.color};font-weight:700;">${g.label}</td>
-      <td style="padding:8px;border-bottom:1px solid #eee;font-weight:700;">${h.score}</td>
+    const defects = getDefectItems(h.checks).map(dd=> dd.item.no).join(', ') || '—';
+    const td = 'padding:5px 8px;border-bottom:1px solid #eee;';
+    return `<tr${i < 3 ? ' style="background:#FDFAF3;"' : ''}>
+      <td style="${td}font-weight:700;">${i+1}</td>
+      <td style="${td}">${escapeHtml(tenant.name||h.storeId)}</td>
+      <td style="${td}">${escapeHtml(tenant.zone||'-')}</td>
+      <td style="${td}color:${g.color};font-weight:700;">${g.label}</td>
+      <td style="${td}font-weight:700;">${h.score}</td>
+      <td style="${td}color:#7A6C50;">${escapeHtml(defects)}</td>
     </tr>`;
   }).join('');
   const zoneRows = s.zoneLabels.map((z,i)=>`<div class="report-mini-stat"><span>${z}</span><b>${s.zoneAvgs[i]} คะแนน</b></div>`).join('');
@@ -5337,14 +5583,17 @@ function renderDashboardReportContent(s){
     </div>
 
     <div style="margin-bottom:18px;">
-      <div style="font-weight:700;font-size:13.5px;margin-bottom:8px;">🔥 Top 5 ร้านค้าที่ต้องปรับปรุงด่วนที่สุด</div>
+      <div style="font-weight:700;font-size:13.5px;margin-bottom:8px;">🔥 Top ${TOP_STORES_LIMIT} ร้านค้าที่ต้องปรับปรุงด่วนที่สุด</div>
       <table style="width:100%;border-collapse:collapse;font-size:12px;">
-        <thead><tr style="background:#F8FAFC;text-align:left;">
-          <th style="padding:7px;border-bottom:2px solid #E6E1FA;">อันดับ</th><th style="padding:7px;border-bottom:2px solid #E6E1FA;">ร้านค้า</th>
-          <th style="padding:7px;border-bottom:2px solid #E6E1FA;">โซน</th><th style="padding:7px;border-bottom:2px solid #E6E1FA;">สถานะ</th>
-          <th style="padding:7px;border-bottom:2px solid #E6E1FA;">คะแนน</th>
+        <thead><tr style="background:#F5EFE2;text-align:left;">
+          <th style="padding:6px 8px;border-bottom:2px solid #C9971B;">อันดับ</th>
+          <th style="padding:6px 8px;border-bottom:2px solid #C9971B;">ร้านค้า</th>
+          <th style="padding:6px 8px;border-bottom:2px solid #C9971B;">โซน</th>
+          <th style="padding:6px 8px;border-bottom:2px solid #C9971B;">สถานะ</th>
+          <th style="padding:6px 8px;border-bottom:2px solid #C9971B;">คะแนน</th>
+          <th style="padding:6px 8px;border-bottom:2px solid #C9971B;">ข้อที่พบ</th>
         </tr></thead>
-        <tbody>${top5Rows || `<tr><td colspan="5" style="padding:12px;text-align:center;color:#9691ab;">ยังไม่มีข้อมูล</td></tr>`}</tbody>
+        <tbody>${top5Rows || `<tr><td colspan="6" style="padding:12px;text-align:center;color:#9691ab;">ยังไม่มีข้อมูล</td></tr>`}</tbody>
       </table>
     </div>
 
@@ -5413,16 +5662,18 @@ function renderPeriodicReportContent(st){
   const cmp = comparePeriod(st);
   const typeName = { week:'รายสัปดาห์', month:'รายเดือน', year:'รายปี' }[st.period.type] || 'ตามรอบเวลา';
 
-  // ---- ตัวเลขหลัก 4 ตัว พร้อมส่วนต่างเทียบรอบก่อน ----
+  /* ---- ตัวเลขหลัก 4 ตัว พร้อมส่วนต่างเทียบรอบก่อน ----
+     ผู้บริหารต้องการรู้ "ทิศทาง" มากกว่าค่าสัมบูรณ์ — คะแนน 84 บอกอะไรไม่ได้
+     ถ้าไม่รู้ว่ารอบก่อนได้ 78 (ดีขึ้น) หรือ 92 (แย่ลง) */
   const kpis = [
     { label:'จำนวนครั้งที่ตรวจ', value:numFmt(st.inspectionCount), unit:'ครั้ง',
-      delta: cmp.hasPrevData ? deltaChip(cmp.inspectionCount, ' ครั้ง', true) : '', color:'#8A6510' },
-    { label:'คะแนนเฉลี่ย', value:st.avgScore, unit:'/ 100',
-      delta: cmp.hasPrevData ? deltaChip(cmp.avgScore, ' คะแนน', true) : '', color:'#C9971B' },
+      delta: cmp.hasPrevData ? deltaChip(cmp.inspectionCount, '', true) : '', color:'#8A6510' },
+    { label:'คะแนนเฉลี่ย', value:st.avgScore, unit:'/100',
+      delta: cmp.hasPrevData ? deltaChip(cmp.avgScore, '', true) : '', color:'#C9971B' },
     { label:'อัตราผ่านมาตรฐาน', value:st.complianceRate + '%', unit:'',
       delta: cmp.hasPrevData ? deltaChip(cmp.complianceRate, '%', true) : '', color:'#0E9F6E' },
     { label:'ข้อบกพร่องขั้นวิกฤต', value:numFmt(st.counts.major), unit:'กรณี',
-      delta: cmp.hasPrevData ? deltaChip(cmp.majorCount, ' กรณี', false) : '', color:'#C2410C' },
+      delta: cmp.hasPrevData ? deltaChip(cmp.majorCount, '', false) : '', color:'#C2410C' },
   ];
   const kpiHtml = kpis.map(k=>`
     <div class="rpt-kpi">
@@ -5431,7 +5682,7 @@ function renderPeriodicReportContent(st){
       ${k.delta || '<span class="rpt-delta is-flat">ไม่มีข้อมูลรอบก่อน</span>'}
     </div>`).join('');
 
-  // ---- สัดส่วนผลตรวจแบบแถบเดียว อ่านง่ายกว่าวงกลมเมื่อพิมพ์ขาวดำ ----
+  // ---- สัดส่วนผลตรวจแบบแถบเดียว อ่านง่ายกว่าวงกลมเมื่อพิมพ์ขาวดำ และกินพื้นที่น้อยกว่ามาก ----
   const total = Math.max(st.inspectionCount, 1);
   const seg = (n, color, label)=> n ? `<div style="width:${(n/total*100).toFixed(1)}%;background:${color};" title="${label}"></div>` : '';
   const barHtml = `
@@ -5441,12 +5692,12 @@ function renderPeriodicReportContent(st){
       ${seg(st.counts.major, '#EF4444', 'ไม่ผ่านขั้นวิกฤต')}
     </div>
     <div class="rpt-legend">
-      <span><i style="background:#10B981;"></i>ผ่านมาตรฐาน ${numFmt(st.counts.compliant)} ครั้ง</span>
-      <span><i style="background:#F59E0B;"></i>ข้อแก้ไขเล็กน้อย ${numFmt(st.counts.minor)} ครั้ง</span>
-      <span><i style="background:#EF4444;"></i>ไม่ผ่านขั้นวิกฤต ${numFmt(st.counts.major)} ครั้ง</span>
+      <span><i style="background:#10B981;"></i>ผ่าน ${numFmt(st.counts.compliant)}</span>
+      <span><i style="background:#F59E0B;"></i>เล็กน้อย ${numFmt(st.counts.minor)}</span>
+      <span><i style="background:#EF4444;"></i>วิกฤต ${numFmt(st.counts.major)}</span>
     </div>`;
 
-  // ---- อันดับหัวข้อที่ตกบ่อยที่สุด ----
+  // ---- อันดับหัวข้อที่ตกบ่อยที่สุด (ใช้วางแผนอบรมผู้เช่าให้ตรงจุด) ----
   const itemRows = st.itemStats.map(x=>{
     const pct = x.failRate;
     const barColor = pct >= 40 ? '#EF4444' : pct >= 15 ? '#F59E0B' : '#10B981';
@@ -5456,14 +5707,14 @@ function renderPeriodicReportContent(st){
       <td class="rpt-td rpt-center">${numFmt(x.evaluated)}</td>
       <td class="rpt-td rpt-center"><b style="color:${x.issues ? '#C2410C' : '#0E9F6E'};">${numFmt(x.issues)}</b></td>
       <td class="rpt-td rpt-center">${x.qty ? numFmt(x.qty) : '<span class="rpt-dim">—</span>'}</td>
-      <td class="rpt-td">
+      <td class="rpt-td rpt-nowrap">
         <div class="rpt-minibar"><span style="width:${pct}%;background:${barColor};"></span></div>
         <span class="rpt-minibar-num">${pct}%</span>
       </td>
     </tr>`;
   }).join('');
 
-  // ---- โซนที่ต้องดูแล ----
+  // ---- โซนที่ต้องดูแล (เรียงจากคะแนนต่ำสุด) ----
   const zoneRows = st.zones.length ? st.zones.map(z=>`
     <tr>
       <td class="rpt-td">${escapeHtml(z.zone)}</td>
@@ -5473,137 +5724,140 @@ function renderPeriodicReportContent(st){
     </tr>`).join('')
     : `<tr><td class="rpt-td rpt-center" colspan="4"><span class="rpt-dim">ยังไม่มีข้อมูลในรอบนี้</span></td></tr>`;
 
-  // ---- ร้านค้าที่ต้องติดตาม (จำกัด 12 รายการแรกให้พอดีหน้ากระดาษ) ----
-  const MAX_WATCH = 12;
+  /* ---- ร้านค้าที่ต้องติดตาม ----
+     แนวนอนมีพื้นที่แนวตั้งน้อยกว่า (794px เทียบกับ 1123px) แต่มี 3 คอลัมน์ให้กระจาย
+     คอลัมน์ขวาจึงใส่ได้ราว 14 แถวก่อนล้น — เกินกว่านั้นให้ชี้ไปที่ไฟล์ Excel */
+  const MAX_WATCH = 14;
   const watchShown = st.watchList.slice(0, MAX_WATCH);
   const watchRows = watchShown.length ? watchShown.map((h,i)=>{
     const t = findTenant(h.storeId) || {};
     const g = gradeMeta(h.grade);
-    const defects = getDefectItems(h.checks).map(d=> `ข้อ ${d.item.no}`).join(', ') || '—';
+    const defects = getDefectItems(h.checks).map(d=> d.item.no).join(', ') || '—';
     return `<tr>
       <td class="rpt-td rpt-no">${i+1}</td>
       <td class="rpt-td"><b>${escapeHtml(t.name || h.storeId)}</b>${h.__repeat ? '<span class="rpt-repeat">ตกซ้ำ</span>' : ''}
-        <br><span class="rpt-dim" style="font-size:10px;">${escapeHtml(h.storeId)} · ${escapeHtml(t.zone || '-')}</span></td>
-      <td class="rpt-td rpt-center">${toBuddhistDateStr(parseBEDateStr(h.date))}</td>
+        <span class="rpt-dim" style="font-size:9.5px;"> · ${escapeHtml(t.zone || '-')}</span></td>
+      <td class="rpt-td rpt-center rpt-nowrap">${toBuddhistDateStr(parseBEDateStr(h.date))}</td>
       <td class="rpt-td rpt-center"><span style="color:${g.color};font-weight:800;">${g.label}</span></td>
       <td class="rpt-td rpt-center"><b>${h.score}</b></td>
-      <td class="rpt-td rpt-center" style="font-size:11px;">${escapeHtml(defects)}</td>
+      <td class="rpt-td rpt-center">${escapeHtml(defects)}</td>
     </tr>`;
   }).join('')
-    : `<tr><td class="rpt-td rpt-center" colspan="6"><span style="color:#0E9F6E;font-weight:700;">ไม่มีร้านค้าที่ต้องติดตามในรอบนี้</span></td></tr>`;
+    : `<tr><td class="rpt-td rpt-center" colspan="6"><span style="color:#0E9F6E;font-weight:700;">ไม่มีร้านค้าที่ต้องติดตามในรอบนี้ ✓</span></td></tr>`;
 
   const watchMore = st.watchList.length > MAX_WATCH
     ? `<div class="rpt-more">และอีก ${numFmt(st.watchList.length - MAX_WATCH)} ร้าน — ดูรายการทั้งหมดได้จากไฟล์ Excel</div>` : '';
 
-  // เนื้อหายาวเกินหน้าเดียวแน่นอนเมื่อมีร้านต้องติดตามหลายราย จึงแยกหน้า 2 ตั้งแต่ต้น
-  const twoPages = st.watchList.length > 0 || st.zones.length > 6;
-  const totalPages = twoPages ? 2 : 1;
-
-  const headerBlock = (subtitle, page)=>`
+  return `
+  <div class="report-page-land">
     <div class="report-header">
       <div style="display:flex;align-items:center;gap:12px;min-width:0;">
         <div style="background:#fff;border-radius:10px;padding:5px 7px;flex-shrink:0;display:flex;align-items:center;"><img src="${SEACON_LOGO_DATA_URL}" style="height:26px;width:auto;display:block;"></div>
         <div class="report-logo">${MALLGUARD_MARK_SVG}</div>
         <div style="min-width:0;">
           <div style="font-size:16px;font-weight:800;line-height:1.25;">รายงานสรุปผลการตรวจประเมินร้านค้า ${typeName}</div>
-          <div style="font-size:11px;opacity:.9;">${escapeHtml(subtitle)}</div>
+          <div style="font-size:11px;opacity:.9;">${escapeHtml(st.period.label)} · แผนกรักษาความปลอดภัย</div>
         </div>
       </div>
-      <div style="text-align:right;font-size:10.5px;opacity:.95;flex-shrink:0;">ออกรายงาน<br><b>${toBuddhistDateStr(new Date())}</b></div>
+      <div style="text-align:right;font-size:10.5px;opacity:.95;flex-shrink:0;">
+        ออกรายงาน<br><b>${toBuddhistDateStr(new Date())}</b>
+      </div>
     </div>
-    <div class="report-gold-rule"></div>`;
-
-  const docBand = `
-    <div class="rpt-doc-band">
-      <span>ประเภทเอกสาร: <b>รายงานสรุป${typeName}</b></span>
-      <span>หน่วยงาน: <b>แผนกรักษาความปลอดภัย</b></span>
-      <span>ชั้นความลับ: <b>ใช้ภายในองค์กร</b></span>
-    </div>`;
-
-  const page2 = !twoPages ? '' : `
-  <div class="report-page">
-    ${headerBlock(st.period.label + ' · เอกสารแนบ', 2)}
-    <div class="report-section-title">🏢 ผลการตรวจแยกตามโซน
-      <span class="report-section-count">เรียงจากคะแนนต่ำสุด</span>
-    </div>
-    <table class="rpt-table" style="margin-bottom:14px;">
-      <thead><tr>
-        <th class="rpt-th">โซน</th>
-        <th class="rpt-th rpt-center" style="width:96px;">จำนวนครั้งที่ตรวจ</th>
-        <th class="rpt-th rpt-center" style="width:88px;">คะแนนเฉลี่ย</th>
-        <th class="rpt-th rpt-center" style="width:96px;">ครั้งที่พบปัญหา</th>
-      </tr></thead>
-      <tbody>${zoneRows}</tbody>
-    </table>
-
-    <div class="report-section-title">📌 ร้านค้าที่ต้องติดตามการแก้ไข
-      <span class="report-section-count">${numFmt(st.watchList.length)} ร้าน${st.repeatCount ? ` · ตกซ้ำ ${numFmt(st.repeatCount)} ร้าน` : ''}</span>
-    </div>
-    <table class="rpt-table">
-      <thead><tr>
-        <th class="rpt-th" style="width:32px;">#</th>
-        <th class="rpt-th">ร้านค้า</th>
-        <th class="rpt-th rpt-center" style="width:96px;">วันที่ตรวจ</th>
-        <th class="rpt-th rpt-center" style="width:104px;">ผลการตรวจ</th>
-        <th class="rpt-th rpt-center" style="width:56px;">คะแนน</th>
-        <th class="rpt-th rpt-center" style="width:88px;">ข้อที่บกพร่อง</th>
-      </tr></thead>
-      <tbody>${watchRows}</tbody>
-    </table>
-    ${watchMore}
-
-    <div class="report-sign-row">
-      <div class="report-sign-box"><div class="report-sign-blank"></div><div class="report-sign-line"></div>
-        <div class="report-sign-role">ผู้จัดทำรายงาน</div><div class="report-sign-name">แผนกรักษาความปลอดภัย</div></div>
-      <div class="report-sign-box"><div class="report-sign-blank"></div><div class="report-sign-line"></div>
-        <div class="report-sign-role">ผู้ตรวจสอบ / อนุมัติ</div><div class="report-sign-name">&nbsp;</div></div>
-    </div>
-    ${periodFooter(st, 2, totalPages)}
-  </div>`;
-
-  return `
-  <div class="report-page">
-    ${headerBlock(st.period.label, 1)}
-    ${docBand}
+    <div class="report-gold-rule"></div>
 
     <div class="report-exec-summary" style="border-left-color:#C9971B;">
       <div class="report-exec-label">สรุปเชิงบริหาร</div>
       <div class="report-exec-text" style="font-weight:500;">${escapeHtml(buildPeriodNarrative(st, cmp))}</div>
     </div>
-
-    <div class="rpt-kpi-grid">${kpiHtml}</div>
     ${st.badDateCount ? `<div class="rpt-warn-note">⚠️ พบผลการตรวจ ${numFmt(st.badDateCount)} รายการที่ข้อมูลวันที่ไม่สมบูรณ์ จึงไม่ถูกนับรวมในรอบเวลาใด กรุณาตรวจสอบและแก้ไขวันที่ในหน้าประวัติการตรวจ</div>` : ''}
 
-    <div class="report-section-title">📊 สัดส่วนผลการตรวจในรอบนี้
-      <span class="report-section-count">รวม ${numFmt(st.inspectionCount)} ครั้ง</span>
-    </div>
-    ${barHtml}
+    <div class="rpt-land-grid">
+      <!-- คอลัมน์ซ้าย: ตัวเลขหลัก + สัดส่วน + โซน -->
+      <div class="rpt-land-col">
+        <div class="rpt-kpi-grid">${kpiHtml}</div>
 
-    <div class="report-section-title" style="margin-top:12px;">🔍 หัวข้อที่ตรวจพบปัญหามากที่สุด
-      <span class="report-section-count">เรียงจากมากไปน้อย</span>
-    </div>
-    <table class="rpt-table">
-      <thead><tr>
-        <th class="rpt-th" style="width:32px;">ข้อ</th>
-        <th class="rpt-th">หัวข้อตรวจ</th>
-        <th class="rpt-th rpt-center" style="width:72px;">ประเมินแล้ว</th>
-        <th class="rpt-th rpt-center" style="width:72px;">พบปัญหา</th>
-        <th class="rpt-th rpt-center" style="width:72px;">รวมจุดที่พบ</th>
-        <th class="rpt-th" style="width:126px;">สัดส่วนที่พบปัญหา</th>
-      </tr></thead>
-      <tbody>${itemRows}</tbody>
-    </table>
+        <div>
+          <div class="report-section-title">📊 สัดส่วนผลการตรวจ
+            <span class="report-section-count">${numFmt(st.inspectionCount)} ครั้ง</span>
+          </div>
+          ${barHtml}
+        </div>
 
-    ${twoPages ? '' : `
-    <div class="report-sign-row">
-      <div class="report-sign-box"><div class="report-sign-blank"></div><div class="report-sign-line"></div>
-        <div class="report-sign-role">ผู้จัดทำรายงาน</div><div class="report-sign-name">แผนกรักษาความปลอดภัย</div></div>
-      <div class="report-sign-box"><div class="report-sign-blank"></div><div class="report-sign-line"></div>
-        <div class="report-sign-role">ผู้ตรวจสอบ / อนุมัติ</div><div class="report-sign-name">&nbsp;</div></div>
-    </div>`}
-    ${periodFooter(st, 1, totalPages)}
-  </div>
-  ${page2}`;
+        <div>
+          <div class="report-section-title">🏢 ผลแยกตามโซน
+            <span class="report-section-count">คะแนนต่ำสุดก่อน</span>
+          </div>
+          <table class="rpt-table">
+            <thead><tr>
+              <th class="rpt-th">โซน</th>
+              <th class="rpt-th rpt-center" style="width:38px;">ตรวจ</th>
+              <th class="rpt-th rpt-center" style="width:46px;">เฉลี่ย</th>
+              <th class="rpt-th rpt-center" style="width:44px;">พบ</th>
+            </tr></thead>
+            <tbody>${zoneRows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- คอลัมน์กลาง: หัวข้อที่ตรวจพบปัญหา -->
+      <div class="rpt-land-col">
+        <div class="report-section-title">🔍 หัวข้อที่ตรวจพบปัญหามากที่สุด
+          <span class="report-section-count">เรียงจากมากไปน้อย</span>
+        </div>
+        <table class="rpt-table">
+          <thead><tr>
+            <th class="rpt-th" style="width:26px;">ข้อ</th>
+            <th class="rpt-th">หัวข้อตรวจ</th>
+            <th class="rpt-th rpt-center" style="width:52px;">ประเมิน</th>
+            <th class="rpt-th rpt-center" style="width:52px;">พบปัญหา</th>
+            <th class="rpt-th rpt-center" style="width:46px;">จุดที่พบ</th>
+            <th class="rpt-th rpt-center" style="width:112px;">สัดส่วน</th>
+          </tr></thead>
+          <tbody>${itemRows}</tbody>
+        </table>
+
+        <div class="rpt-criteria">
+          <div class="rpt-criteria-title">เกณฑ์การประเมิน</div>
+          <div style="font-size:10.2px;line-height:1.55;color:#4A4030;">
+            <b>คะแนนรายข้อ</b> ผ่าน = 100 · เฝ้าระวัง = 60 · ไม่ผ่าน = 0 · คะแนนรวมคือค่าเฉลี่ยของข้อที่ประเมินครบแล้ว<br>
+            <span style="color:#10B981;font-weight:700;">ผ่านมาตรฐาน</span> ผ่านครบทุกข้อ ·
+            <span style="color:#F59E0B;font-weight:700;">ข้อแก้ไขเล็กน้อย</span> พบข้อบกพร่องที่ไม่กระทบความปลอดภัยโดยตรง ·
+            <span style="color:#EF4444;font-weight:700;">ไม่ผ่านขั้นวิกฤต</span> พบข้อบกพร่องในข้อ ${CHECKLIST_ITEMS.filter(i=>i.severity==='major').map(i=>i.no).join(', ')}
+          </div>
+        </div>
+      </div>
+
+      <!-- คอลัมน์ขวา: ร้านค้าที่ต้องติดตาม -->
+      <div class="rpt-land-col">
+        <div class="report-section-title">📌 ร้านค้าที่ต้องติดตามการแก้ไข
+          <span class="report-section-count">${numFmt(st.watchList.length)} ร้าน${st.repeatCount ? ` · ตกซ้ำ ${numFmt(st.repeatCount)}` : ''}</span>
+        </div>
+        <table class="rpt-table">
+          <thead><tr>
+            <th class="rpt-th" style="width:24px;">#</th>
+            <th class="rpt-th">ร้านค้า</th>
+            <th class="rpt-th rpt-center" style="width:76px;">วันที่ตรวจ</th>
+            <th class="rpt-th rpt-center" style="width:84px;">ผลการตรวจ</th>
+            <th class="rpt-th rpt-center" style="width:40px;">คะแนน</th>
+            <th class="rpt-th rpt-center" style="width:52px;">ข้อที่พบ</th>
+          </tr></thead>
+          <tbody>${watchRows}</tbody>
+        </table>
+        ${watchMore}
+
+        <div class="rpt-land-sign">
+          <div class="report-sign-box"><div class="report-sign-line"></div>
+            <div class="report-sign-role">ผู้จัดทำรายงาน</div>
+            <div class="report-sign-name">แผนกรักษาความปลอดภัย</div></div>
+          <div class="report-sign-box"><div class="report-sign-line"></div>
+            <div class="report-sign-role">ผู้ตรวจสอบ / อนุมัติ</div>
+            <div class="report-sign-name">&nbsp;</div></div>
+        </div>
+      </div>
+    </div>
+
+    ${periodFooter(st, 1, 1)}
+  </div>`;
 }
 
 function periodFooter(st, page, totalPages){
@@ -5615,6 +5869,28 @@ function periodFooter(st, page, totalPages){
 }
 
 /* ---------- ตัวควบคุมรายงานตามรอบบนหน้าแดชบอร์ด ---------- */
+/* กาง/ยุบแถบรายงานบนมือถือ */
+function togglePeriodBar(){
+  const bar = document.getElementById('periodBar');
+  const btn = document.querySelector('.period-toggle');
+  if (!bar) return;
+  const open = bar.classList.toggle('is-open');
+  if (btn) btn.classList.toggle('is-open', open);
+}
+
+/* เมนูตัวเลือกเพิ่มเติมของแดชบอร์ด */
+function toggleDashMenu(){
+  const m = document.getElementById('dashMenu');
+  if (m) m.classList.toggle('js-hidden');
+}
+
+// คลิกที่อื่นให้ปิดเมนู — ไม่งั้นเมนูจะค้างเปิดทับเนื้อหาจนผู้ใช้งง
+document.addEventListener('click', e=>{
+  const m = document.getElementById('dashMenu');
+  if (!m || m.classList.contains('js-hidden')) return;
+  if (!e.target.closest || !e.target.closest('.period-more')) m.classList.add('js-hidden');
+});
+
 function getSelectedPeriod(){
   const typeEl = document.getElementById('periodType');
   const offEl  = document.getElementById('periodOffset');
@@ -5650,6 +5926,9 @@ function updatePeriodSummaryLine(){
     el.innerHTML = st.inspectionCount
       ? `<b>${escapeHtml(st.period.label)}</b> · ตรวจ ${numFmt(st.inspectionCount)} ครั้ง · ${numFmt(st.storesInspected)}/${numFmt(st.totalStores)} ร้าน (${st.coverageRate}%) · คะแนนเฉลี่ย <b>${st.avgScore}</b> · ผ่านมาตรฐาน ${st.complianceRate}%`
       : `<b>${escapeHtml(st.period.label)}</b> · ยังไม่มีผลการตรวจในรอบนี้`;
+    // ปุ่มยุบบนมือถือต้องบอกรอบที่เลือกอยู่ด้วย ไม่งั้นพอยุบแล้วผู้ใช้จะไม่รู้ว่ากำลังดูรอบไหน
+    const lbl = document.getElementById('periodToggleLabel');
+    if (lbl) lbl.textContent = st.period.shortLabel;
   } catch(err){
     console.error('updatePeriodSummaryLine error:', err);
     el.textContent = 'คำนวณสรุปรอบนี้ไม่สำเร็จ';
