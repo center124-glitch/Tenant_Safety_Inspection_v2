@@ -1,6 +1,46 @@
 <!DOCTYPE html>
 <!-- ============================================================
   MallGuard — Tenant Safety & Standards Inspection System
+  Version 10 (v10) — รายงานสรุปตามรอบเวลา + ตรวจทานระบบรอบที่สอง
+  ---------------------------------------------------------------
+  [ฟีเจอร์หลัก] รายงานสรุปผลการตรวจ รายสัปดาห์ / รายเดือน / รายปี
+    - เลือกรอบเวลาและย้อนดูรอบก่อนหน้าได้ (สัปดาห์นี้ / เดือนที่แล้ว / ปี 2568 ฯลฯ)
+    - เปรียบเทียบกับรอบก่อนหน้าโดยอัตโนมัติ พร้อมลูกศรขึ้น-ลงและส่วนต่าง
+      (ตัวเลขคะแนนเฉลี่ย 84 บอกอะไรไม่ได้เลยถ้าไม่รู้ว่ารอบก่อนได้เท่าไร)
+    - จัดอันดับหัวข้อที่ร้านค้าตกบ่อยที่สุด -> ใช้วางแผนอบรมผู้เช่าได้ตรงจุด
+    - ตารางร้านค้าที่ต้องติดตาม + ตัวชี้ "ตกซ้ำ" (ตกติดต่อกันหลายรอบ)
+    - สรุปเชิงบริหารเป็นภาษาไทยที่อ่านแล้วสรุปประชุมได้ทันที
+    - Export ได้ทั้ง PDF / PNG / Excel (Excel แยก 3 ชีต: สรุป · รายข้อ · รายร้าน)
+
+  [แก้ไขจากการตรวจทาน]
+    1. computeDashboardStats() พังทั้งหน้าถ้าร้านค้าถูกลบหลังบันทึกผลตรวจไปแล้ว
+       (zoneScores[tenant.zone] เป็น undefined -> อ่าน .sum ไม่ได้)
+    2. inspectionToExportRow() ยังใช้ TENANTS.find ตรงๆ ไม่ผ่าน findTenant
+       ทำให้ไฟล์ Excel ที่ export ได้ชื่อร้านว่างเมื่อรหัสร้านมีช่องว่างติดมา
+    3. นับ "ตรวจแล้วรอบนี้" จากประวัติทั้งหมดตลอดกาล ไม่ได้จำกัดรอบเวลา
+       ทำให้ความคืบหน้ารอบตรวจขึ้นเป็น 100% ค้างตลอดไปตั้งแต่เดือนแรก
+
+  Version 9 (v9) — ปรับปรุงการทำงานจริงหน้างาน + ออกแบบใบรายงานใหม่
+  ---------------------------------------------------------------
+  [ฟังก์ชันที่เพิ่ม — แก้ปัญหาที่เจ้าหน้าที่เจอจริงหน้างาน]
+  1. บันทึกฟอร์มที่กรอกค้างอัตโนมัติ (auto-save draft)
+     เดิมถ้าแบตหมด/สายเข้า/เผลอปิดแท็บระหว่างกรอก — เช็คลิสต์ 6 ข้อ รูปหลักฐาน
+     และข้อมูลผู้ติดต่อที่กรอกไว้จะหายทั้งหมด ต้องเดินกลับไปตรวจใหม่ทั้งร้าน
+  2. ตัวบ่งชี้สถานะออนไลน์/ออฟไลน์ + ส่งข้อมูลค้างอัตโนมัติเมื่อเน็ตกลับมา
+     เดิมเจ้าหน้าที่ไม่มีทางรู้ว่าเน็ตหลุด จนกลับถึงออฟฟิศแล้วพบว่าข้อมูลไม่ขึ้น Sheets
+  3. เตือนก่อนปิดหน้าเว็บเมื่อยังมีงานค้าง (ฟอร์มกรอกค้าง หรือรายการที่ยังไม่ขึ้น Sheets)
+  4. แบ่งหน้าตารางประวัติ (pagination)
+     เดิมวาดทุกแถวพร้อมกัน พอข้อมูลสะสมถึงหลักพันรายการ หน้าจอจะหน่วงหนักบนมือถือ
+
+  [ใบรายงาน — ออกแบบใหม่ให้เป็นมาตรฐานเอกสารและอ่านเข้าใจง่ายขึ้น]
+  5. เปลี่ยนรายการตรวจจาก "แถวสองฝั่ง" เป็นตารางจริง 5 คอลัมน์
+     (ลำดับ · หัวข้อตรวจ · ผลการตรวจ · รายละเอียดที่พบ · สถานะ)
+     พร้อมแถบสีสถานะด้านซ้ายของแต่ละแถว กวาดตาเห็นข้อที่ตกได้ทันที
+  6. วงแหวนคะแนน (donut) แทนตัวเลขลอยๆ — เห็นสัดส่วนคะแนนได้ในพริบตา
+  7. เพิ่มตารางติดตามผลการแก้ไข สำหรับกรอกด้วยปากกาเมื่อเข้าตรวจซ้ำ
+  8. เพิ่มคำอธิบายเกณฑ์การประเมินท้ายเอกสาร ผู้เช่าอ่านแล้วเข้าใจที่มาของคะแนน
+  9. แถบระบุชั้นความลับ/ประเภทเอกสาร และเลขหน้าตามมาตรฐานเอกสารควบคุม
+
   Version 8 (v8) — ตรวจทาน Logic + เพิ่ม Error Handling ทั้งระบบ
   ---------------------------------------------------------------
   [บั๊กที่ทำให้ใช้งานผิดพลาดจริง]
@@ -201,6 +241,23 @@ body::before{
 }
 @media (prefers-reduced-motion: reduce){ body::before{ animation:none; } }
 
+/* ตัวบ่งชี้สถานะการเชื่อมต่อบนหัวแอป
+   ต้องเห็นได้ตลอดเวลาโดยไม่ต้องเปิดหาที่ไหน เพราะการรู้ช้าว่าเน็ตหลุด
+   หมายถึงเจ้าหน้าที่ตรวจไปแล้วหลายร้านโดยที่ข้อมูลไม่ขึ้น Sheets เลยสักร้าน */
+.online-chip{
+  display:inline-flex; align-items:center; gap:5px; white-space:nowrap;
+  padding:0 11px; min-height:36px; border-radius:999px;
+  font-size:12px; font-weight:700; cursor:pointer; border:1.5px solid transparent;
+  transition:.15s ease;
+}
+.online-chip.is-online{  background:rgba(16,185,129,.16);  color:#34D399; border-color:rgba(16,185,129,.45); }
+.online-chip.is-pending{ background:rgba(245,158,11,.18);  color:#FBBF24; border-color:rgba(245,158,11,.5);
+                         animation:pendingPulse 2s ease-in-out infinite; }
+.online-chip.is-offline{ background:rgba(239,68,68,.18);   color:#FCA5A5; border-color:rgba(239,68,68,.5); }
+@keyframes pendingPulse{ 0%,100%{ opacity:1; } 50%{ opacity:.6; } }
+/* จอแคบมากให้เหลือแค่ไอคอน ไม่ให้เบียดจนหัวแอปตัดบรรทัด */
+@media (max-width:420px){ .online-chip{ font-size:0; padding:0 9px; gap:0; } .online-chip::first-letter{ font-size:15px; } }
+
 /* เครื่องหมายโล่ประจำระบบบนหัวแอป — ชุดสีเดียวกับหน้า Splash และไอคอน PWA */
 .app-logo-mark{
   width:36px; height:36px; border-radius:12px; display:flex; align-items:center; justify-content:center;
@@ -373,36 +430,41 @@ table.dataTable tbody td{ border-color:var(--border) !important; }
 /* ใบรายงานคงพื้นสีขาวเสมอ (ไม่ผูกกับ Light/Dark ของแอป) เพราะเป็นเอกสารสำหรับ
    พิมพ์ลงกระดาษและแนบเป็นหลักฐานประกอบใบเตือนผู้เช่า — พิมพ์พื้นดำจะเปลืองหมึกและอ่านยาก
    จึงใช้โทน "ขาวงาช้าง + เส้นทอง + หัวกระดาษดำ-ทอง" แทน ให้ดูเป็นทางการระดับองค์กร */
-.report-page{ width:794px; min-height:1123px; background:#fff; color:#17150F; font-family:'Prompt',sans-serif; box-sizing:border-box; padding:34px 38px 62px; position:relative; }
+/* หน้ากระดาษ A4 (794x1123px @96dpi)
+   ระยะห่างทุกจุดถูกบีบให้ใบรายงานที่มีรูปหลักฐานไม่เกิน 8 รูปจบในหน้าเดียว
+   ถ้าเนื้อหายาวกว่านั้น หน้ากระดาษจะยืดลงและท้ายกระดาษเลื่อนตามไปเอง (ไม่ทับเนื้อหา)
+   ไฟล์ PDF ที่ได้จะเป็นหน้าเดียวขนาดพิเศษตามความสูงจริง ซึ่งยังพิมพ์ได้ปกติ */
+.report-page{ width:794px; min-height:1123px; background:#fff; color:#17150F; font-family:'Prompt',sans-serif; box-sizing:border-box; padding:30px 34px 56px; position:relative; }
 /* เส้นทองคาดขอบซ้ายตลอดหน้ากระดาษ — ลายเซ็นภาพลักษณ์ของเอกสารชุดนี้ */
 .report-page::before{ content:''; position:absolute; left:0; top:0; bottom:0; width:7px;
   background-image:linear-gradient(180deg,#0B0B0D 0%,#A8791A 45%,#F97316 100%); }
-.report-header{ display:flex; align-items:center; justify-content:space-between; border-radius:16px; padding:17px 22px; color:#FDF6E6;
+.report-header{ display:flex; align-items:center; justify-content:space-between; border-radius:15px; padding:13px 20px; color:#FDF6E6;
   background-image:linear-gradient(112deg,#0B0B0D 0%,#241A08 42%,#8A6510 80%,#C2410C 100%);
   margin-bottom:6px; gap:10px; box-shadow:0 8px 22px -12px rgba(0,0,0,.55); }
 .report-gold-rule{ height:3px; border-radius:3px; margin-bottom:15px;
   background-image:linear-gradient(90deg,#C9971B,#F5D888 35%,#F97316 100%); }
-.report-logo{ width:44px; height:44px; border-radius:13px; flex-shrink:0;
+.report-logo{ width:40px; height:40px; border-radius:12px; flex-shrink:0;
   background-image:linear-gradient(140deg,#FFE08A 0%,#FFC93C 32%,#F79424 66%,#FF6B2C 100%);
   display:flex; align-items:center; justify-content:center;
   box-shadow:0 4px 12px -3px rgba(255,167,45,.8), inset 0 1px 4px rgba(255,255,255,.5); }
 .report-logo svg{ filter:drop-shadow(0 1px 2px rgba(120,55,0,.4)); }
-.report-summary-strip{ display:flex; flex-direction:column; gap:11px; margin-bottom:15px; }
-.report-store-block{ background:#FDFAF3; border-radius:14px; padding:14px 18px; border:1px solid #EADFC4; border-left:4px solid #C9971B; }
+.report-summary-strip{ display:flex; flex-direction:column; gap:9px; margin-bottom:11px; }
+.report-store-block{ background:#FDFAF3; border-radius:12px; padding:11px 16px; border:1px solid #EADFC4; border-left:4px solid #C9971B; }
 .report-summary-row2{ display:flex; gap:11px; align-items:stretch; }
-.report-grade-block{ flex:0 0 172px; border-radius:14px; padding:14px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; border:1px solid rgba(0,0,0,.05); }
+.report-grade-block{ flex:0 0 168px; border-radius:14px; padding:9px 14px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; border:1px solid rgba(0,0,0,.05); }
+.report-grade-block svg{ display:block; }
 .report-mini-stats{ flex:1; display:flex; flex-direction:column; gap:7px; justify-content:center; }
 .report-mini-stat{ background:#FDFAF3; border:1px solid #EADFC4; border-radius:12px; padding:9px 13px; font-size:12.5px; display:flex; justify-content:space-between; gap:8px; }
 .report-mini-stat span{ color:#7A6C50; }
-.report-checklist-grid{ display:flex; flex-direction:column; gap:10px; margin-bottom:15px; }
-.report-cat-card{ border-radius:13px; padding:12px 15px; border:1px solid #EADFC4; background:#FFFDF8; }
+.report-checklist-grid{ display:flex; flex-direction:column; gap:9px; margin-bottom:11px; }
+.report-cat-card{ border-radius:12px; padding:10px 13px; border:1px solid #EADFC4; background:#FFFDF8; }
 .report-cat-title{ font-weight:700; font-size:13.5px; margin-bottom:9px; padding-bottom:8px; border-bottom:2px solid #F0E3C4;
   display:flex; align-items:center; gap:6px; color:#3A2C10; }
 .report-check-row{ display:flex; justify-content:space-between; gap:10px; align-items:center; font-size:12.5px; padding:9px 12px; border-radius:10px; margin-bottom:5px; border:1px solid rgba(0,0,0,.04); }
-.report-photos-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:15px; }
-.report-photos-grid img{ width:100%; height:96px; object-fit:cover; border-radius:10px; border:1px solid #EADFC4; }
-.report-note-box{ background:#FFF8EC; border:1px solid #F0D9A6; border-left:4px solid #F97316; border-radius:14px; padding:13px 17px; font-size:12.5px; margin-bottom:15px; line-height:1.7; }
-.report-sign-row{ display:flex; gap:22px; margin-top:16px; }
+.report-photos-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-bottom:11px; }
+.report-photos-grid img{ width:100%; height:82px; object-fit:cover; border-radius:9px; border:1px solid #EADFC4; }
+.report-note-box{ background:#FFF8EC; border:1px solid #F0D9A6; border-left:4px solid #F97316; border-radius:12px; padding:10px 15px; font-size:12.5px; margin-bottom:11px; line-height:1.65; }
+.report-sign-row{ display:flex; gap:22px; margin-top:10px; }
 .report-sign-box{ flex:1; text-align:center; font-size:12px; color:#5A4E38; }
 .report-sign-img{ height:60px; object-fit:contain; margin-bottom:4px; }
 .report-footer{ position:absolute; bottom:20px; left:38px; right:38px; display:flex; justify-content:space-between; gap:12px; font-size:10.5px; color:#8A7B5E; border-top:2px solid #F0E3C4; padding-top:8px; }
@@ -411,7 +473,7 @@ table.dataTable tbody td{ border-color:var(--border) !important; }
 
 /* บทสรุปผู้บริหาร — บรรทัดแรกที่ผู้บริหารอ่าน ต้องเด่นกว่าตารางรายละเอียด */
 .report-exec-summary{ background:#FDFAF3; border:1px solid #EADFC4; border-left:5px solid #C9971B;
-  border-radius:12px; padding:11px 16px; margin-bottom:14px; }
+  border-radius:11px; padding:7px 14px; margin-bottom:9px; }
 .report-exec-label{ font-size:10.5px; font-weight:700; letter-spacing:.6px; color:#8A7B5E; text-transform:uppercase; margin-bottom:3px; }
 .report-exec-text{ font-size:13px; font-weight:600; line-height:1.65; color:#2A2415; }
 
@@ -421,7 +483,7 @@ table.dataTable tbody td{ border-color:var(--border) !important; }
 .report-section-count{ font-size:11px; font-weight:600; color:#8A7B5E; }
 
 /* กรอบรูปหลักฐาน: มีเลขลำดับมุมขวาล่างเพื่ออ้างอิงในบันทึกได้ ("ตามภาพที่ 3") */
-.report-photo-cell{ position:relative; border-radius:10px; overflow:hidden; border:1px solid #EADFC4; background:#FDFAF3; height:96px; }
+.report-photo-cell{ position:relative; border-radius:9px; overflow:hidden; border:1px solid #EADFC4; background:#FDFAF3; height:82px; }
 .report-photo-cell img{ width:100%; height:100%; object-fit:cover; display:block; }
 .report-photo-cell b{ position:absolute; right:4px; bottom:4px; background:rgba(11,11,13,.78); color:#F5D888;
   font-size:10px; font-weight:700; padding:1px 6px; border-radius:6px; }
@@ -436,13 +498,88 @@ table.dataTable tbody td{ border-color:var(--border) !important; }
   font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:999px; vertical-align:middle; }
 
 /* ช่องลายเซ็น: มีเส้นให้เซ็นจริงบนกระดาษ + ชื่อและตำแหน่งกำกับใต้เส้น */
-.report-sign-img{ display:block; margin:0 auto 2px; }
-.report-sign-blank{ height:60px; }
-.report-sign-line{ border-bottom:1px solid #9A8B6C; margin:0 12px 6px; }
-.report-sign-role{ font-size:11.5px; color:#5A4E38; }
-.report-sign-name{ font-size:12px; font-weight:700; color:#2A2415; margin-top:2px; min-height:16px; }
+.report-sign-img{ display:block; margin:0 auto 2px; height:52px; object-fit:contain; }
+.report-sign-blank{ height:52px; }
+.report-sign-line{ border-bottom:1px solid #9A8B6C; margin:0 12px 5px; }
+.report-sign-role{ font-size:11px; color:#5A4E38; }
+.report-sign-name{ font-size:11.5px; font-weight:700; color:#2A2415; margin-top:1px; min-height:15px; }
 
 .report-preview-loading{ padding:60px 20px; text-align:center; font-size:14px; color:var(--text-muted); }
+
+/* ---------- รายงานสรุปตามรอบเวลา v10 ---------- */
+.rpt-kpi-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:9px; margin-bottom:13px; }
+.rpt-kpi{ border:1px solid #EADFC4; border-radius:11px; background:#FDFAF3; padding:9px 11px; }
+.rpt-kpi-label{ font-size:10px; color:#7A6C50; font-weight:600; margin-bottom:3px; }
+.rpt-kpi-value{ font-size:23px; font-weight:800; line-height:1.05; }
+.rpt-kpi-unit{ font-size:10.5px; font-weight:600; color:#8A7B5E; margin-left:3px; }
+
+/* ป้ายส่วนต่างเทียบรอบก่อน — สีบอกว่า "ดีขึ้นหรือแย่ลง" ไม่ใช่ "เพิ่มหรือลด"
+   เพราะข้อบกพร่องที่เพิ่มขึ้นคือเรื่องแย่ ส่วนคะแนนที่เพิ่มขึ้นคือเรื่องดี */
+.rpt-delta{ display:inline-block; margin-top:4px; font-size:10px; font-weight:700; padding:1px 7px; border-radius:999px; }
+.rpt-delta.is-good{ background:rgba(16,185,129,.15); color:#0E7A56; }
+.rpt-delta.is-bad{ background:rgba(239,68,68,.14); color:#B91C1C; }
+.rpt-delta.is-flat{ background:#F0E9DA; color:#8A7B5E; }
+
+/* แถบสัดส่วนแบบเรียงต่อกัน — อ่านง่ายกว่าวงกลมเมื่อพิมพ์ขาวดำ และกินพื้นที่น้อยกว่ามาก */
+.rpt-stackbar{ display:flex; height:20px; border-radius:7px; overflow:hidden; border:1px solid #EADFC4; background:#F5EFE2; }
+.rpt-stackbar > div{ height:100%; }
+.rpt-legend{ display:flex; gap:16px; flex-wrap:wrap; margin-top:6px; font-size:10.5px; color:#4A4030; }
+.rpt-legend i{ display:inline-block; width:9px; height:9px; border-radius:3px; margin-right:5px; }
+
+/* แถบสัดส่วนย่อยในตารางรายข้อ */
+.rpt-minibar{ display:inline-block; width:76px; height:8px; background:#EFE7D6; border-radius:5px; overflow:hidden; vertical-align:middle; }
+.rpt-minibar span{ display:block; height:100%; border-radius:5px; }
+.rpt-minibar-num{ font-size:10.5px; font-weight:700; margin-left:6px; vertical-align:middle; color:#4A4030; }
+
+.rpt-repeat{ display:inline-block; margin-left:6px; background:#DC2626; color:#fff; font-size:9px; font-weight:700; padding:1px 6px; border-radius:999px; vertical-align:middle; }
+.rpt-more{ font-size:10.5px; color:#8A7B5E; margin-top:6px; font-style:italic; }
+.rpt-warn-note{ background:#FEF3C7; border:1px solid #FCD34D; border-left:4px solid #D97706;
+  border-radius:9px; padding:7px 12px; font-size:10.8px; color:#78350F; margin-bottom:11px; line-height:1.55; }
+
+/* ---------- ใบรายงานรูปแบบใหม่ v9 ---------- */
+
+/* แถบระบุประเภทเอกสารใต้หัวกระดาษ */
+/* หัวกระดาษแบบย่อของหน้าเอกสารแนบ — เตี้ยกว่าหน้าแรกเพื่อเหลือพื้นที่ให้เนื้อหามากขึ้น */
+.report-header-slim{ padding:12px 20px; margin-bottom:6px; }
+.report-header-slim .report-logo{ width:38px; height:38px; border-radius:11px; }
+/* เว้นช่องว่างระหว่างหน้ากระดาษตอนดูพรีวิว ให้เห็นชัดว่าเป็นคนละแผ่น */
+.report-page + .report-page{ margin-top:22px; }
+
+.rpt-doc-band{
+  display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;
+  background:#FDFAF3; border:1px solid #EADFC4; border-radius:9px;
+  padding:4px 13px; margin-bottom:10px; font-size:10px; color:#7A6C50;
+}
+.rpt-doc-band b{ color:#2A2415; }
+
+/* ตารางรายการตรวจ — เส้นตารางบางแต่คมชัด เหมาะกับการพิมพ์ขาวดำด้วย */
+.rpt-table{ width:100%; border-collapse:collapse; font-size:12px; margin-bottom:4px; }
+.rpt-th{
+  background:#2A2415; color:#F5D888; font-weight:700; font-size:11.5px;
+  padding:6px 10px; text-align:left; border:1px solid #2A2415; letter-spacing:.2px;
+}
+.rpt-td{ padding:6px 10px; border:1px solid #EADFC4; vertical-align:middle; line-height:1.5; }
+.rpt-table tbody tr:nth-child(even) .rpt-td{ background:#FDFAF3; }
+.rpt-no{ text-align:center; font-weight:800; color:#3A2C10; }
+.rpt-center{ text-align:center; }
+.rpt-dim{ color:#A69B85; }
+/* ช่องเว้นว่างสำหรับกรอกด้วยปากกา — ต้องสูงพอให้เขียนได้จริงบนกระดาษ A4 */
+.rpt-blank{ height:30px; background:#fff !important; }
+
+/* กล่องเกณฑ์การประเมิน */
+.rpt-criteria{
+  border:1px solid #EADFC4; border-left:4px solid #C9971B; border-radius:10px;
+  background:#FDFAF3; padding:8px 14px; margin-bottom:10px;
+}
+.rpt-criteria-title{
+  font-size:10px; font-weight:700; letter-spacing:.6px; color:#8A7B5E;
+  text-transform:uppercase; margin-bottom:4px;
+}
+.rpt-criteria-grid{
+  display:grid; grid-template-columns:1fr 1.3fr; gap:14px;
+  font-size:10.2px; line-height:1.5; color:#4A4030;
+}
+.rpt-criteria-grid b{ color:#2A2415; }
 
 @media (max-width: 768px){
   .kpi-num{ font-size:28px; }
@@ -756,6 +893,20 @@ input:focus, select:focus, textarea:focus{ background:var(--bg-2); }
 .table-scroll thead th{ position:sticky; top:0; z-index:1;
   background:var(--surface); border-bottom:2px solid var(--gold) !important; }
 
+/* ปุ่มเปลี่ยนหน้าของตารางประวัติ */
+.pager-btn{
+  min-width:40px; min-height:40px; padding:0 12px; border-radius:11px;
+  border:1.5px solid var(--border); background:var(--surface);
+  font-size:13px; font-weight:600; color:var(--text);
+  display:inline-flex; align-items:center; justify-content:center;
+  cursor:pointer; transition:.15s ease; touch-action:manipulation;
+}
+.pager-btn:hover{ border-color:var(--gold); color:var(--gold-text); }
+.pager-btn.is-active{ background-image:linear-gradient(135deg,var(--grad-1a),var(--grad-1b));
+  color:#150F02; border-color:transparent; cursor:default; }
+.pager-btn.is-disabled{ opacity:.38; cursor:not-allowed; }
+.pager-gap{ color:var(--text-muted); padding:0 2px; align-self:center; }
+
 /* แถบเลื่อนของโมดัลพรีวิว ให้เห็นชัดว่าเลื่อนต่อได้ */
 #reportPreviewScrollArea{ border-radius:14px; background:rgba(0,0,0,.18); padding:6px; }
 
@@ -836,6 +987,7 @@ input:focus, select:focus, textarea:focus{ background:var(--bg-2); }
         <option value="inspector" selected>👷 เจ้าหน้าที่ผู้ตรวจ (Inspector)</option>
         <option value="admin">🛠️ ผู้ดูแลระบบ (Admin)</option>
       </select>
+      <button id="onlineIndicator" class="online-chip" onclick="retryUnsyncedRecords()" title="สถานะการเชื่อมต่อ">🟢 ออนไลน์</button>
       <button id="darkToggle" class="btn header-btn !min-h-[44px] !px-3" title="สลับโหมดสว่าง/มืด">🌙</button>
     </div>
   </div>
@@ -875,9 +1027,28 @@ input:focus, select:focus, textarea:focus{ background:var(--bg-2); }
           <p class="text-muted text-sm" id="dashDateLabel"></p>
         </div>
         <div class="flex gap-2">
-          <button class="btn btn-outline" onclick="previewDashboardReport()">👁️ ดูตัวอย่าง/PDF</button>
+          <button class="btn btn-outline" onclick="previewDashboardReport()">👁️ ภาพรวมทั้งหมด</button>
           <button class="btn btn-outline" onclick="exportDashboardExcel()">📊 Export Excel</button>
         </div>
+      </div>
+
+      <!-- รายงานสรุปตามรอบเวลา — วางไว้บนสุดของแดชบอร์ดเพราะเป็นสิ่งที่หัวหน้าแผนก
+           ต้องหยิบไปใช้ประชุมประจำสัปดาห์/เดือนบ่อยที่สุด ไม่ควรต้องเลื่อนหา -->
+      <div class="surface rounded-2xl p-4">
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="font-bold text-sm flex items-center gap-2 shrink-0">📅 รายงานสรุปตามรอบเวลา</div>
+          <select id="periodType" class="!w-auto !py-2 !text-sm" onchange="refreshPeriodOffsetOptions()">
+            <option value="week">รายสัปดาห์</option>
+            <option value="month" selected>รายเดือน</option>
+            <option value="year">รายปี</option>
+          </select>
+          <select id="periodOffset" class="!w-auto !py-2 !text-sm" onchange="updatePeriodSummaryLine()"></select>
+          <div class="flex gap-2 ml-auto flex-wrap">
+            <button class="btn btn-outline !min-h-[40px] !py-1.5 text-sm" onclick="exportPeriodicExcel()">📊 Excel</button>
+            <button class="btn btn-grad !min-h-[40px] !py-1.5 text-sm" style="--g1:var(--grad-1a);--g2:var(--grad-1b);" onclick="previewPeriodicReport()">📄 ออกรายงาน</button>
+          </div>
+        </div>
+        <div id="periodSummaryLine" class="text-xs text-muted mt-3 pt-3 border-t border-soft"></div>
       </div>
 
 <!-- แถว KPI 8 ใบ: มือถือ 2 คอลัมน์ / แท็บเลต 4 / จอคอมกว้าง 4 (2 แถว) เต็มความกว้างแดชบอร์ด -->
@@ -1028,8 +1199,8 @@ input:focus, select:focus, textarea:focus{ background:var(--bg-2); }
 
       <div class="surface rounded-2xl p-4">
         <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">
-          <input type="text" id="historySearchInput" placeholder="🔍 ค้นหาชื่อร้าน/รหัสร้าน/ผู้ตรวจ..." class="sm:col-span-2" oninput="renderHistoryTable()">
-          <select id="historyStatusFilter" onchange="renderHistoryTable()">
+          <input type="text" id="historySearchInput" placeholder="🔍 ค้นหาชื่อร้าน/รหัสร้าน/ผู้ตรวจ..." class="sm:col-span-2" oninput="State.historyPage=1; renderHistoryTable()">
+          <select id="historyStatusFilter" onchange="State.historyPage=1; renderHistoryTable()">
             <option value="">ทุกสถานะ</option>
             <option value="compliant">ผ่านมาตรฐาน</option>
             <option value="minor">ข้อแก้ไขเล็กน้อย</option>
@@ -1040,7 +1211,16 @@ input:focus, select:focus, textarea:focus{ background:var(--bg-2); }
             <option value="asc">เก่าสุดก่อน</option>
           </select>
         </div>
-        <div id="historyListCount" class="text-xs text-muted mb-2"></div>
+        <div class="flex items-center justify-between gap-2 flex-wrap mb-2">
+          <div id="historyListCount" class="text-xs text-muted"></div>
+          <select id="historyPageSize" onchange="State.historyPage=1; renderHistoryTable();"
+                  class="!w-auto !py-1 !text-xs" title="จำนวนรายการต่อหน้า">
+            <option value="25">25 รายการ/หน้า</option>
+            <option value="50" selected>50 รายการ/หน้า</option>
+            <option value="100">100 รายการ/หน้า</option>
+            <option value="all">แสดงทั้งหมด</option>
+          </select>
+        </div>
         <!-- เลื่อนดูรายการได้ยาวๆ แทนการแบ่งหน้า -->
         <!-- ตารางคอลัมน์ให้ดูเป็นระเบียบ เลื่อนดูต่อเนื่อง + ตรึงหัวตารางไว้ด้านบนขณะเลื่อน -->
         <div class="table-scroll overflow-auto rounded-xl border border-soft" style="max-height:70vh;">
@@ -1060,6 +1240,7 @@ input:focus, select:focus, textarea:focus{ background:var(--bg-2); }
             <tbody id="historyList"></tbody>
           </table>
         </div>
+        <div id="historyPager" class="flex items-center justify-center gap-2 mt-3 flex-wrap"></div>
       </div>
     </section>
 
@@ -1447,6 +1628,7 @@ const State = {
   photos: [],          // รูปที่แนบในฟอร์มปัจจุบัน (base64 หลัง compress แล้ว)
   cameraStream: null,
   submitting: false,   // กำลังบันทึกผลตรวจอยู่หรือไม่ (กันกดยืนยันซ้ำ)
+  historyPage: 1,      // หน้าปัจจุบันของตารางประวัติ
   sigPadInspector: null,
   sigPadStore: null,
   editingTenantId: null,
@@ -1670,7 +1852,8 @@ function init(){
   // แยกแต่ละขั้นตอนด้วย try-catch ของตัวเอง เพื่อไม่ให้ปัญหาจากขั้นตอนหนึ่ง (เช่น ตารางข้อมูล)
   // ลามไปทำให้ขั้นตอนสำคัญถัดไป (การแสดงเมนูตามบทบาท, หน้าล็อกจอ) ไม่ถูกเรียกใช้งานตามไปด้วย
   const steps = [setupPWAAssets, setupHeaderLogo, setupDarkMode, setupNav, setupRoleSwitch, populateStoreSelect,
-    setupInspectionTypeButtons, renderTenantsTable, renderHistoryTable, renderDashboard];
+    setupInspectionTypeButtons, renderTenantsTable, renderHistoryTable, renderDashboard,
+    setupConnectivityWatch, setupUnloadGuard, setupDraftAutoSaveInputs, refreshPeriodOffsetOptions];
   steps.forEach(fn=>{
     try { fn(); } catch(err){ console.error('เริ่มต้นระบบส่วน "' + fn.name + '" ผิดพลาด:', err); }
   });
@@ -1697,7 +1880,200 @@ const STORAGE_KEYS = {
   history:'mallguard_inspection_history_v2',
   adminPin:'mallguard_admin_pin_hash',
   adminRecovery:'mallguard_admin_recovery_hash',   // แฮชของรหัสกู้คืน (คนละตัวกับรหัสผ่าน)
+  draft:'mallguard_inspection_draft_v1',           // ฟอร์มที่กรอกค้างไว้ (auto-save)
 };
+
+/* ================================================================
+   ===============  บันทึกฟอร์มที่กรอกค้างอัตโนมัติ (Auto-save)  =====
+   ปัญหาจริงหน้างาน: เจ้าหน้าที่เดินตรวจทีละร้าน กรอกเช็คลิสต์ 6 ข้อ ถ่ายรูปหลักฐาน
+   แล้วอาจถูกขัดจังหวะ — สายเข้า แบตหมด เผลอสไลด์ปิดแท็บ หรือเบราว์เซอร์รีโหลดเอง
+   เพื่อคืนหน่วยความจำ (Android/iOS ทำแบบนี้บ่อยมากเมื่อสลับแอป)
+   ของเดิมทุกอย่างอยู่ในตัวแปรใน RAM เท่านั้น พอหลุดคือหายหมด ต้องเดินกลับไปตรวจใหม่ทั้งร้าน
+
+   จึงบันทึกร่างลงเครื่องทุกครั้งที่มีการเปลี่ยนแปลง (หน่วงไว้เล็กน้อยกันเขียนถี่เกิน)
+   แล้วถามผู้ใช้ตอนเปิดแอปครั้งถัดไปว่าจะกู้คืนหรือเริ่มใหม่
+   ================================================================ */
+let draftSaveTimer = null;
+let draftRestoreOffered = false;   // ถามเรื่องกู้คืนร่างแค่ครั้งเดียวต่อการเปิดแอป
+
+function saveDraftSoon(){
+  clearTimeout(draftSaveTimer);
+  draftSaveTimer = setTimeout(saveDraftNow, 600);
+}
+
+function saveDraftNow(){
+  if (!State.draft || !State.draft.storeId) return;
+  try {
+    const payload = {
+      savedAt: Date.now(),
+      storeId: State.draft.storeId,
+      type: State.draft.type,
+      checks: State.draft.checks || {},
+      contact: State.draft.contact || '',
+      phone: State.draft.phone || '',
+      notes: (document.getElementById('noteText') || {}).value || '',
+      deadline: (document.getElementById('deadlineInput') || {}).value || '',
+      inspector: (document.getElementById('inspectorNameInput') || {}).value || '',
+      photos: State.photos || [],
+    };
+    localStorage.setItem(STORAGE_KEYS.draft, JSON.stringify(payload));
+  } catch(err){
+    // พื้นที่เต็มมักเกิดจากรูป base64 — ลองบันทึกร่างแบบไม่มีรูปดีกว่าไม่บันทึกอะไรเลย
+    try {
+      const light = JSON.parse(localStorage.getItem(STORAGE_KEYS.draft) || '{}');
+      light.photos = [];
+      localStorage.setItem(STORAGE_KEYS.draft, JSON.stringify(light));
+    } catch(err2){ console.warn('บันทึกร่างฟอร์มไม่สำเร็จ:', err2); }
+  }
+}
+
+function clearDraft(){
+  clearTimeout(draftSaveTimer);
+  try { localStorage.removeItem(STORAGE_KEYS.draft); } catch(err){ /* ข้าม */ }
+}
+
+function readSavedDraft(){
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.draft);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    if (!d || !d.storeId) return null;
+    // ร่างที่ค้างเกิน 24 ชั่วโมงถือว่าหมดอายุ — เสนอกู้คืนผลตรวจของเมื่อวานจะทำให้ข้อมูลผิดวัน
+    if (d.savedAt && (Date.now() - d.savedAt) > 24*60*60*1000){ clearDraft(); return null; }
+    return d;
+  } catch(err){ return null; }
+}
+
+/* มีอะไรกรอกไว้จริงหรือยัง — ใช้ตัดสินว่าควรเสนอกู้คืนไหม และควรเตือนก่อนปิดหน้าเว็บไหม
+   ถ้าแค่เลือกร้านแล้วยังไม่กรอกอะไรเลย ไม่ต้องไปกวนผู้ใช้ */
+function draftHasContent(d){
+  if (!d) return false;
+  const answered = Object.keys(d.checks || {}).length;
+  return answered > 0 || (d.photos || []).length > 0 || !!(d.notes && d.notes.trim());
+}
+
+function offerDraftRestore(){
+  const d = readSavedDraft();
+  if (!draftHasContent(d)) return;
+  const tenant = findTenant(d.storeId);
+  const answered = Object.keys(d.checks || {}).length;
+  const when = new Date(d.savedAt || Date.now());
+  const timeStr = `${String(when.getHours()).padStart(2,'0')}:${String(when.getMinutes()).padStart(2,'0')} น.`;
+
+  Swal.fire({
+    icon: 'question',
+    title: 'พบฟอร์มที่กรอกค้างไว้',
+    html: `ร้าน <b>${escapeHtml(tenant ? tenant.name : d.storeId)}</b><br>
+           ประเมินไว้ ${answered}/${CHECKLIST_ITEMS.length} ข้อ · รูปหลักฐาน ${(d.photos||[]).length} รูป<br>
+           <span style="font-size:12.5px;color:var(--text-muted);">บันทึกล่าสุดเมื่อ ${timeStr}</span><br><br>
+           ต้องการกรอกต่อจากเดิมหรือไม่?`,
+    showCancelButton: true,
+    confirmButtonText: 'กรอกต่อ',
+    cancelButtonText: 'เริ่มใหม่',
+    confirmButtonColor: '#C9971B',
+    allowOutsideClick: false
+  }).then(res=>{
+    if (res.isConfirmed) restoreDraft(d);
+    else clearDraft();
+  });
+}
+
+function restoreDraft(d){
+  try {
+    const sel = document.getElementById('storeSelect');
+    if (!findTenant(d.storeId)){
+      showToast('ร้านค้าในฟอร์มที่ค้างไว้ไม่มีอยู่ในระบบแล้ว จึงกู้คืนไม่ได้', 'error');
+      clearDraft();
+      return;
+    }
+    goToPage('inspect');
+    sel.value = d.storeId;
+    selectStore(d.storeId);          // สร้างฟอร์มเปล่าขึ้นมาก่อน
+
+    // แล้วค่อยเติมค่าที่กรอกไว้กลับเข้าไป
+    State.draft.checks = d.checks || {};
+    State.draft.type = d.type || State.draft.type;
+    State.draft.contact = d.contact || State.draft.contact;
+    State.draft.phone = d.phone || State.draft.phone;
+    State.photos = Array.isArray(d.photos) ? d.photos : [];
+
+    const setVal = (id, v)=>{ const el = document.getElementById(id); if (el && v != null) el.value = v; };
+    setVal('inspectContactName', d.contact);
+    setVal('inspectContactPhone', d.phone);
+    setVal('noteText', d.notes);
+    setVal('deadlineInput', d.deadline);
+    setVal('inspectorNameInput', d.inspector);
+
+    renderChecklist();
+    renderPhotoGallery();
+    showToast('กู้คืนฟอร์มที่กรอกค้างไว้เรียบร้อย — ลายเซ็นต้องเซ็นใหม่', 'success');
+  } catch(err){
+    console.error('กู้คืนฟอร์มไม่สำเร็จ:', err);
+    showToast('กู้คืนฟอร์มไม่สำเร็จ กรุณาเริ่มกรอกใหม่', 'error');
+    clearDraft();
+  }
+}
+
+/* ================================================================
+   ===============  สถานะการเชื่อมต่อ (ออนไลน์/ออฟไลน์)  ===========
+   เจ้าหน้าที่ตรวจตามชั้นใต้ดิน ลานจอดรถ และห้องเครื่อง ซึ่งสัญญาณมักหลุด
+   เดิมไม่มีอะไรบอกเลยว่าตอนนี้ส่งข้อมูลขึ้น Sheets ไม่ได้
+   กว่าจะรู้ก็ตอนกลับถึงออฟฟิศแล้วเปิดดูชีตแล้วไม่เจอข้อมูล
+   ================================================================ */
+function updateOnlineIndicator(){
+  const el = document.getElementById('onlineIndicator');
+  if (!el) return;
+  const online = navigator.onLine !== false;
+  const pending = getUnsyncedRecords().length;
+  el.classList.remove('is-online', 'is-offline', 'is-pending');
+  if (!online){
+    el.classList.add('is-offline');
+    el.textContent = '⚠️ ออฟไลน์';
+    el.title = 'ไม่มีการเชื่อมต่ออินเทอร์เน็ต — ข้อมูลจะถูกเก็บในเครื่องและส่งขึ้น Google Sheets อัตโนมัติเมื่อเชื่อมต่อได้';
+  } else if (pending > 0){
+    el.classList.add('is-pending');
+    el.textContent = `📤 ค้างส่ง ${pending}`;
+    el.title = `มี ${pending} รายการที่ยังยืนยันไม่ได้ว่าขึ้น Google Sheets — กดเพื่อส่งซ้ำ`;
+  } else {
+    el.classList.add('is-online');
+    el.textContent = '🟢 ออนไลน์';
+    el.title = 'เชื่อมต่อปกติ ข้อมูลขึ้น Google Sheets ครบแล้ว';
+  }
+}
+
+function setupConnectivityWatch(){
+  updateOnlineIndicator();
+  window.addEventListener('online', ()=>{
+    updateOnlineIndicator();
+    showToast('กลับมาออนไลน์แล้ว — กำลังส่งข้อมูลที่ค้างอยู่ขึ้น Google Sheets', 'success');
+    // ส่งของค้างให้อัตโนมัติทันที ไม่ต้องรอผู้ใช้กดเอง (ซึ่งส่วนใหญ่จะลืม)
+    if (getUnsyncedRecords().length) retryUnsyncedRecords(true).then(updateOnlineIndicator);
+  });
+  window.addEventListener('offline', ()=>{
+    updateOnlineIndicator();
+    showToast('ขาดการเชื่อมต่อ — ข้อมูลจะถูกเก็บในเครื่องไว้ก่อน แล้วส่งให้อัตโนมัติเมื่อเน็ตกลับมา', 'error');
+  });
+  // เผื่อกรณี navigator.onLine ไม่แม่น (เชื่อม WiFi ได้แต่ออกเน็ตไม่ได้) — ตรวจซ้ำเป็นระยะ
+  setInterval(updateOnlineIndicator, 30000);
+}
+
+/* เตือนก่อนปิดหน้าเว็บเมื่อยังมีงานค้าง
+   เคสที่เจ็บที่สุดคือปิดแท็บทิ้งทั้งที่ยังมีผลตรวจที่ไม่ได้ขึ้น Sheets
+   ถ้าเครื่องถูกล้างข้อมูลเบราว์เซอร์ต่อจากนั้น ข้อมูลจะหายถาวร */
+function setupUnloadGuard(){
+  window.addEventListener('beforeunload', e=>{
+    const pending = getUnsyncedRecords().length;
+    const hasDraft = draftHasContent(State.draft ? {
+      checks: State.draft.checks, photos: State.photos,
+      notes: (document.getElementById('noteText')||{}).value
+    } : null);
+    if (pending > 0 || hasDraft){
+      e.preventDefault();
+      e.returnValue = '';   // เบราว์เซอร์สมัยใหม่จะแสดงข้อความมาตรฐานของตัวเอง
+      return '';
+    }
+  });
+}
 
 /* ================================================================
    ===============  รหัสผ่านผู้ดูแลระบบ (ตั้งเองได้จากในแอป)  ========
@@ -1991,6 +2367,8 @@ function safeRefreshUI(){
   try { renderHistoryTable(); } catch(err){ console.error('renderHistoryTable error:', err); }
   try { renderTenantsTable(); } catch(err){ console.error('renderTenantsTable error:', err); }
   try { renderDashboard(); } catch(err){ console.error('renderDashboard error:', err); }
+  try { updateOnlineIndicator(); } catch(err){ console.error('updateOnlineIndicator error:', err); }
+  try { updatePeriodSummaryLine(); } catch(err){ console.error('updatePeriodSummaryLine error:', err); }
 }
 
 function persistTenants(){
@@ -2116,9 +2494,28 @@ function updateSplashClock(){
 }
 
 // เข้าใช้งานแอป: ซ่อน splash + รีเซ็ตกลับหน้าแดชบอร์ด (หน้าแรก) เสมอ
+/* ผูก auto-save เข้ากับช่องกรอกที่อยู่นอกเช็คลิสต์ (หมายเหตุ เดดไลน์ ผู้ติดต่อ ชื่อผู้ตรวจ) */
+function setupDraftAutoSaveInputs(){
+  ['noteText','deadlineInput','inspectorNameInput'].forEach(id=>{
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', saveDraftSoon);
+  });
+  // ช่องผู้ติดต่อถูกสร้างใหม่ทุกครั้งที่เลือกร้าน จึงดักที่ระดับ document แทนการผูกทีละช่อง
+  document.addEventListener('input', e=>{
+    if (e.target && (e.target.id === 'inspectContactName' || e.target.id === 'inspectContactPhone')) saveDraftSoon();
+  });
+}
+
 function enterApp(){
   if (!splashActive) return;
   splashActive = false;
+  // ถามเรื่องฟอร์มที่กรอกค้างหลังผู้ใช้เข้าแอปแล้วเท่านั้น
+  // ถ้าเด้งตอนยังอยู่หน้า Splash ผู้ใช้จะยังไม่ทันตั้งตัวแล้วกดผิดจนข้อมูลที่กรอกไว้หาย
+  // ใช้ครั้งเดียวต่อการเปิดแอป ไม่ถามซ้ำตอนกลับมาจากหน้าพักจอ
+  if (!draftRestoreOffered){
+    draftRestoreOffered = true;
+    setTimeout(()=>{ try { offerDraftRestore(); } catch(err){ console.warn('เสนอกู้คืนร่างไม่สำเร็จ:', err); } }, 500);
+  }
   document.getElementById('splashScreen').classList.add('splash-hidden');
   goToPage('dashboard'); // กลับหน้าแรกทุกครั้งที่เข้าใหม่ + rerender ข้อมูลล่าสุด
   resetIdleTimer();
@@ -2342,6 +2739,210 @@ function applyRoleVisibility(){
 }
 
 /* ================================================================
+   ===============  รอบเวลาของรายงานสรุป (สัปดาห์/เดือน/ปี)  ========
+
+   หลักการ: ทำงานด้วย Date ของ ค.ศ. ภายในทั้งหมด แล้วค่อยแปลงเป็น พ.ศ. ตอนแสดงผล
+   ถ้าคำนวณช่วงเวลาด้วยตัวเลข พ.ศ. ตรงๆ จะเจอปัญหาปีอธิกสุรทินและการข้ามเดือน
+   (เช่น 2567 หาร 4 ลงตัวแต่ไม่ใช่ปีอธิกสุรทิน เพราะปี ค.ศ. ที่ตรงกันคือ 2024 ต่างหาก)
+
+   สัปดาห์เริ่มวันจันทร์ตามธรรมเนียมการทำงานของไทย ไม่ใช่วันอาทิตย์แบบค่าเริ่มต้นของ JS
+   ================================================================ */
+
+function startOfDay(d){ const x = new Date(d); x.setHours(0,0,0,0); return x; }
+
+/* วันจันทร์ของสัปดาห์ที่วันที่นั้นอยู่ */
+function startOfWeek(d){
+  const x = startOfDay(d);
+  const day = x.getDay();               // 0=อาทิตย์ 1=จันทร์ ... 6=เสาร์
+  const diff = day === 0 ? -6 : 1 - day; // อาทิตย์ให้ถอยกลับไปจันทร์ของสัปดาห์เดียวกัน
+  x.setDate(x.getDate() + diff);
+  return x;
+}
+
+/**
+ * คำนวณช่วงเวลาของรอบรายงาน
+ * @param {string} type   'week' | 'month' | 'year'
+ * @param {number} offset 0 = รอบปัจจุบัน, -1 = รอบก่อนหน้า, -2 = ถอยไปสองรอบ
+ * @returns {{type, start, end, label, shortLabel}}  end คือ "ต้นวันถัดไป" (ใช้เทียบแบบ < end)
+ */
+function getPeriodRange(type, offset){
+  offset = offset || 0;
+  const now = new Date();
+  let start, end, label, shortLabel;
+
+  if (type === 'week'){
+    start = startOfWeek(now);
+    start.setDate(start.getDate() + offset * 7);
+    end = new Date(start); end.setDate(end.getDate() + 7);
+    const last = new Date(end); last.setDate(last.getDate() - 1);
+    label = `สัปดาห์ที่ ${toBuddhistDateStr(start)} ถึง ${toBuddhistDateStr(last)}`;
+    shortLabel = offset === 0 ? 'สัปดาห์นี้' : (offset === -1 ? 'สัปดาห์ที่แล้ว' : `${Math.abs(offset)} สัปดาห์ก่อน`);
+
+  } else if (type === 'year'){
+    const y = now.getFullYear() + offset;
+    start = new Date(y, 0, 1);
+    end = new Date(y + 1, 0, 1);
+    label = `ปี พ.ศ. ${y + 543}`;
+    shortLabel = `ปี ${y + 543}`;
+
+  } else { // month
+    const base = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    start = base;
+    end = new Date(base.getFullYear(), base.getMonth() + 1, 1);
+    label = `เดือน${THAI_MONTHS[base.getMonth()]} พ.ศ. ${base.getFullYear() + 543}`;
+    shortLabel = offset === 0 ? 'เดือนนี้' : (offset === -1 ? 'เดือนที่แล้ว' : label.replace('เดือน',''));
+  }
+  return { type, offset, start, end, label, shortLabel };
+}
+
+/* ผลตรวจรายการนี้อยู่ในรอบเวลานี้หรือไม่
+
+   ⚠️ ห้ามใช้ parseBEDateStr() ตรงนี้
+   ฟังก์ชันนั้นออกแบบให้ "คืนวันที่ปัจจุบันเป็นค่าสำรอง" เมื่ออ่านค่าไม่ออก ซึ่งถูกต้องสำหรับ
+   การแสดงผล (ดีกว่าทำให้ทั้งหน้าพัง) แต่ผิดมหันต์สำหรับการคัดกรองตามรอบเวลา —
+   ผลตรวจที่วันที่เสียหายจะถูกนับเข้ารอบปัจจุบันโดยอัตโนมัติ ทำให้ตัวเลขในรายงานสรุป
+   ผิดเพี้ยนแบบเงียบๆ โดยไม่มีใครสังเกตเห็น
+   จึงต้องแยกออกมาอ่านเองด้วย parseFlexibleDate ซึ่งคืน null เมื่ออ่านไม่ออก */
+function isInPeriod(record, period){
+  if (!record) return false;
+  const raw = record.date;
+  const d = (raw instanceof Date) ? raw : parseFlexibleDate(raw);
+  if (!(d instanceof Date) || isNaN(d.getTime())) return false;
+  const t = startOfDay(d).getTime();
+  return t >= period.start.getTime() && t < period.end.getTime();
+}
+
+/* ตรวจหาผลตรวจที่วันที่เสียหาย — ถ้ามีต้องแจ้งให้ผู้ใช้รู้ ไม่ใช่ปล่อยให้หายไปจากรายงานเงียบๆ
+   รายการเหล่านี้จะไม่ถูกนับในรอบใดเลย ซึ่งทำให้ยอดรวมไม่ตรงกับจำนวนรายการในตารางประวัติ */
+function findRecordsWithBadDate(){
+  return INSPECTION_HISTORY.filter(h=>{
+    const d = (h.date instanceof Date) ? h.date : parseFlexibleDate(h.date);
+    return !(d instanceof Date) || isNaN(d.getTime());
+  });
+}
+
+/* ================================================================
+   ===============  สถิติของรอบเวลา  ================================
+   คำนวณแยกจาก computeDashboardStats() ซึ่งมองภาพรวมตลอดกาล
+   เพราะรายงานตามรอบต้องตอบคำถามคนละชุด — "รอบนี้ทำได้แค่ไหน เทียบรอบก่อนดีขึ้นไหม"
+   ================================================================ */
+function computePeriodStats(period){
+  const records = INSPECTION_HISTORY.filter(h=> isInPeriod(h, period));
+  const badDateCount = findRecordsWithBadDate().length;
+  const activeTenants = TENANTS.filter(t=> t.status === 'Active');
+  const totalStores = activeTenants.length;
+
+  const counts = { compliant:0, minor:0, major:0 };
+  records.forEach(h=>{ if (counts[h.grade] !== undefined) counts[h.grade]++; });
+
+  const n = records.length;
+  const avgScore = n ? Math.round(records.reduce((sum,h)=> sum + (Number(h.score)||0), 0) / n) : 0;
+  const complianceRate = n ? Math.round(counts.compliant / n * 100) : 0;
+
+  // จำนวนร้านที่ถูกตรวจในรอบนี้ (นับร้านไม่ซ้ำ ไม่ใช่จำนวนครั้งที่ตรวจ)
+  const storeIds = new Set(records.map(h=> normalizeStoreId(h.storeId)));
+  const storesInspected = storeIds.size;
+  const coverageRate = totalStores ? Math.round(storesInspected / totalStores * 100) : 0;
+
+  // ---- อันดับหัวข้อที่ตกบ่อยที่สุด ----
+  // ใช้วางแผนอบรมผู้เช่าได้ตรงจุด แทนการอบรมทุกหัวข้อเท่ากันหมดทั้งที่บางข้อแทบไม่มีใครตก
+  const itemStats = CHECKLIST_ITEMS.map(item=>{
+    let evaluated = 0, failed = 0, warned = 0, qty = 0;
+    records.forEach(h=>{
+      const ans = h.checks ? h.checks[item.id] : null;
+      const st = itemStatus(item, ans);
+      if (!st.complete) return;
+      evaluated++;
+      if (st.status === 'fail') failed++;
+      else if (st.status === 'warn') warned++;
+      // รวมจำนวนที่พบ (ปลั๊กไฟกี่จุด รูหนูกี่รู) เพื่อบอกขนาดของปัญหา ไม่ใช่แค่จำนวนร้านที่ตก
+      (item.fields || []).forEach(f=>{
+        if (f.type !== 'number' || !ans) return;
+        const v = parseInt(ans[f.key], 10);
+        if (!isNaN(v)) qty += v;
+      });
+    });
+    const issues = failed + warned;
+    return {
+      item, evaluated, failed, warned, issues, qty,
+      failRate: evaluated ? Math.round(issues / evaluated * 100) : 0,
+    };
+  }).sort((a,b)=> b.issues - a.issues || b.failRate - a.failRate);
+
+  // ---- ร้านค้าที่ต้องติดตาม (ผลตรวจล่าสุดในรอบนี้ยังไม่ผ่าน) ----
+  const latestByStore = {};
+  records.forEach(h=>{
+    const key = normalizeStoreId(h.storeId);
+    const prev = latestByStore[key];
+    if (!prev || parseBEDateStr(h.date) >= parseBEDateStr(prev.date)) latestByStore[key] = h;
+  });
+  const watchList = Object.values(latestByStore)
+    .filter(h=> h.grade !== 'compliant')
+    .sort((a,b)=> (a.score||0) - (b.score||0));
+
+  // ---- ร้านที่ตกซ้ำ (เคยตกในรอบก่อนหน้าด้วย) ----
+  // ร้านที่ตกครั้งเดียวอาจเป็นอุบัติเหตุ แต่ตกซ้ำแปลว่าไม่ได้แก้จริง ต้องยกระดับการติดตาม
+  const prevPeriod = getPeriodRange(period.type, (period.offset || 0) - 1);
+  const prevFailStores = new Set(
+    INSPECTION_HISTORY.filter(h=> isInPeriod(h, prevPeriod) && h.grade !== 'compliant')
+      .map(h=> normalizeStoreId(h.storeId))
+  );
+  watchList.forEach(h=>{ h.__repeat = prevFailStores.has(normalizeStoreId(h.storeId)); });
+  const repeatCount = watchList.filter(h=> h.__repeat).length;
+
+  // ---- คะแนนเฉลี่ยแยกโซน ----
+  const zoneMap = {};
+  records.forEach(h=>{
+    const t = findTenant(h.storeId);
+    const zone = (t && t.zone) || 'ไม่ระบุโซน';
+    if (!zoneMap[zone]) zoneMap[zone] = { sum:0, count:0, issues:0 };
+    zoneMap[zone].sum += (Number(h.score) || 0);
+    zoneMap[zone].count++;
+    if (h.grade !== 'compliant') zoneMap[zone].issues++;
+  });
+  const zones = Object.keys(zoneMap).map(z=>({
+    zone: z,
+    avg: Math.round(zoneMap[z].sum / zoneMap[z].count),
+    count: zoneMap[z].count,
+    issues: zoneMap[z].issues,
+  })).sort((a,b)=> a.avg - b.avg);
+
+  return {
+    period, records, totalStores, storesInspected, coverageRate,
+    inspectionCount: n, counts, avgScore, complianceRate,
+    itemStats, watchList, repeatCount, zones, badDateCount,
+  };
+}
+
+/* เปรียบเทียบกับรอบก่อนหน้า
+   ตัวเลข "คะแนนเฉลี่ย 84" ไม่มีความหมายถ้าไม่รู้ว่ารอบก่อนได้เท่าไร
+   ผู้บริหารต้องการรู้ทิศทาง (ดีขึ้น/แย่ลง) มากกว่าค่าสัมบูรณ์ */
+function comparePeriod(current){
+  const prev = computePeriodStats(getPeriodRange(current.period.type, (current.period.offset || 0) - 1));
+  const delta = (a, b)=> ({ value: a - b, prev: b });
+  return {
+    prev,
+    hasPrevData: prev.inspectionCount > 0,
+    avgScore: delta(current.avgScore, prev.avgScore),
+    complianceRate: delta(current.complianceRate, prev.complianceRate),
+    inspectionCount: delta(current.inspectionCount, prev.inspectionCount),
+    majorCount: delta(current.counts.major, prev.counts.major),
+  };
+}
+
+/* ป้ายแสดงส่วนต่างเทียบรอบก่อน
+   goodWhenUp=false ใช้กับตัวเลขที่ "ยิ่งน้อยยิ่งดี" เช่นจำนวนข้อบกพร่องขั้นวิกฤต
+   ถ้าใช้สีเขียวกับลูกศรขึ้นทุกกรณี จะสื่อผิดว่าข้อบกพร่องเพิ่มขึ้นเป็นเรื่องดี */
+function deltaChip(d, unit, goodWhenUp){
+  if (!d || d.value === 0) return `<span class="rpt-delta is-flat">— เท่ารอบก่อน</span>`;
+  const up = d.value > 0;
+  const good = goodWhenUp === false ? !up : up;
+  const arrow = up ? '▲' : '▼';
+  const sign = up ? '+' : '';
+  return `<span class="rpt-delta ${good ? 'is-good' : 'is-bad'}">${arrow} ${sign}${d.value}${unit || ''}</span>`;
+}
+
+/* ================================================================
    ===============  DASHBOARD  =====================================
    ================================================================ */
 let chartDoughnut, chartBar, chartTrend, chartRadar;
@@ -2362,8 +2963,13 @@ function computeDashboardStats(){
   INSPECTION_HISTORY.forEach(h=>{
     const tenant = findTenant(h.storeId);
     if (!tenant) return;
-    zoneScores[tenant.zone].sum += h.score;
-    zoneScores[tenant.zone].count += 1;
+    // ต้องสร้างช่องของโซนนี้ถ้ายังไม่มี — ร้านที่ถูกลบออกจากข้อมูลหลักไปแล้ว
+    // หรือร้านที่ถูกแก้โซนหลังบันทึกผลตรวจ จะทำให้ zoneScores[zone] เป็น undefined
+    // แล้วอ่าน .sum ไม่ได้ ทำให้แดชบอร์ดพังทั้งหน้า (เจอจากการตรวจทานรอบนี้)
+    const zone = tenant.zone || 'ไม่ระบุโซน';
+    if (!zoneScores[zone]) zoneScores[zone] = { sum:0, count:0 };
+    zoneScores[zone].sum += (Number(h.score) || 0);
+    zoneScores[zone].count += 1;
   });
   const zoneLabels = Object.keys(zoneScores);
   const zoneAvgs = zoneLabels.map(z=> zoneScores[z].count ? Math.round(zoneScores[z].sum / zoneScores[z].count) : 0);
@@ -2595,6 +3201,7 @@ function selectStore(storeId){
   };
   State.photos = [];
   document.getElementById('photoGallery').innerHTML = '';
+  saveDraftSoon();
 
   const infoCard = document.getElementById('storeInfoCard');
   infoCard.classList.remove('js-hidden');
@@ -2799,6 +3406,7 @@ function setAnswer(prefix, itemId, fieldKey, value){
 
   const el = document.getElementById(`${prefix}-row-${itemId}`);
   if (el) el.outerHTML = renderCheckItem(item, ans, prefix);
+  if (prefix === 'main') saveDraftSoon();
 }
 
 /* กรอกตัวเลข/ข้อความ — อัปเดตเฉพาะสีกรอบและป้ายสถานะ ไม่ re-render ทั้งข้อ
@@ -2834,6 +3442,7 @@ function setAnswerText(prefix, itemId, fieldKey, value){
     badge.style.background = meta.bg;
     badge.style.color = meta.color;
   }
+  if (prefix === 'main') saveDraftSoon();
 }
 
 /* ---------- กล้องถ่ายภาพหลักฐาน ---------- */
@@ -2973,6 +3582,7 @@ function compressAndAddPhoto(dataUrl, filename){
   img.src = dataUrl;
 }
 function renderPhotoGallery(){
+  saveDraftSoon();   // รูปหลักฐานคือส่วนที่เสียเวลาถ่ายที่สุด ต้องไม่ปล่อยให้หาย
   const gal = document.getElementById('photoGallery');
   gal.innerHTML = State.photos.map((p,i)=>`
     <div class="relative rounded-xl overflow-hidden aspect-square surface-2">
@@ -3237,6 +3847,8 @@ async function finalizeSubmit(){
   document.getElementById('deadlineInput').value = '';
   restoreInspectorName();   // ชื่อผู้ตรวจคงไว้ เพราะคนเดิมมักตรวจต่ออีกหลายร้านในรอบเดียว
   State.pendingRecord = null;
+  clearDraft();               // บันทึกสำเร็จแล้ว ร่างที่ค้างไว้ไม่จำเป็นอีก
+  updateOnlineIndicator();
   if (btn){ btn.disabled = false; btn.innerHTML = '✅ ยืนยันบันทึกผล'; }
   State.submitting = false;
   idlePaused = false;
@@ -3478,6 +4090,46 @@ function sendMajorDefectAlert(record, tenant){
    ===============  หน้ารายงาน/ประวัติ  ============================
    ================================================================ */
 
+/* แถบเปลี่ยนหน้า — แสดงเลขหน้าแบบย่อเมื่อมีหลายหน้า (1 … 4 5 6 … 20)
+   เพื่อไม่ให้ปุ่มล้นออกนอกจอมือถือเมื่อข้อมูลมีเป็นร้อยหน้า */
+function renderHistoryPager(totalPages){
+  const el = document.getElementById('historyPager');
+  if (!el) return;
+  if (totalPages <= 1){ el.innerHTML = ''; return; }
+
+  const cur = State.historyPage;
+  const btn = (label, page, opts)=>{
+    const o = opts || {};
+    if (o.disabled) return `<span class="pager-btn is-disabled">${label}</span>`;
+    if (o.active)   return `<span class="pager-btn is-active">${label}</span>`;
+    return `<button type="button" class="pager-btn" onclick="goToHistoryPage(${page})">${label}</button>`;
+  };
+
+  const nums = [];
+  const push = (n)=>{ if (!nums.includes(n) && n >= 1 && n <= totalPages) nums.push(n); };
+  push(1); push(totalPages);
+  for (let i = cur - 1; i <= cur + 1; i++) push(i);
+  nums.sort((a,b)=>a-b);
+
+  let html = btn('‹ ก่อนหน้า', cur - 1, { disabled: cur === 1 });
+  let prev = 0;
+  nums.forEach(n=>{
+    if (prev && n - prev > 1) html += '<span class="pager-gap">…</span>';
+    html += btn(String(n), n, { active: n === cur });
+    prev = n;
+  });
+  html += btn('ถัดไป ›', cur + 1, { disabled: cur === totalPages });
+  el.innerHTML = html;
+}
+
+function goToHistoryPage(page){
+  State.historyPage = Math.max(1, page);
+  renderHistoryTable();
+  // เลื่อนกลับขึ้นหัวตารางให้เห็นแถวแรกของหน้าใหม่ทันที ไม่ต้องปัดขึ้นเอง
+  const box = document.querySelector('#page-reports .table-scroll');
+  if (box) box.scrollTop = 0;
+}
+
 function renderHistoryTable(){
   try {
     const listEl = document.getElementById('historyList');
@@ -3510,7 +4162,24 @@ function renderHistoryTable(){
       return sortDir === 'asc' ? diff : -diff;
     });
 
-    if (countEl) countEl.textContent = `พบ ${numFmt(rows.length)} รายการ จากทั้งหมด ${numFmt(INSPECTION_HISTORY.length)} รายการ`;
+    /* แบ่งหน้า — สำคัญเมื่อข้อมูลสะสมนานเข้า
+       ศูนย์การค้าขนาดกลางมีผู้เช่าราว 300 ร้าน ตรวจเดือนละครั้ง = 3,600 รายการ/ปี
+       ถ้าวาดทุกแถวพร้อมกัน DOM จะมีหมื่นกว่า node แล้วมือถือจะหน่วงจนใช้งานไม่ได้ */
+    const pageSizeEl = document.getElementById('historyPageSize');
+    const rawSize = pageSizeEl ? pageSizeEl.value : '50';
+    const pageSize = rawSize === 'all' ? rows.length || 1 : parseInt(rawSize, 10) || 50;
+    const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+    // กันหน้าปัจจุบันเกินขอบเขตหลังผู้ใช้กรองข้อมูลจนรายการเหลือน้อยลง
+    if (!State.historyPage || State.historyPage > totalPages) State.historyPage = 1;
+    const startIdx = (State.historyPage - 1) * pageSize;
+    const pageRows = rows.slice(startIdx, startIdx + pageSize);
+
+    if (countEl){
+      countEl.textContent = rows.length
+        ? `แสดง ${numFmt(startIdx + 1)}-${numFmt(startIdx + pageRows.length)} จาก ${numFmt(rows.length)} รายการ (ทั้งหมด ${numFmt(INSPECTION_HISTORY.length)} รายการ)`
+        : `พบ 0 รายการ จากทั้งหมด ${numFmt(INSPECTION_HISTORY.length)} รายการ`;
+    }
+    renderHistoryPager(totalPages);
 
     // อัปเดตแถบเตือนรายการที่ยังยืนยันไม่ได้ว่าขึ้น Google Sheets
     const unsynced = getUnsyncedRecords();
@@ -3523,11 +4192,12 @@ function renderHistoryTable(){
 
     if (!rows.length){
       listEl.innerHTML = `<tr><td colspan="8" class="text-center py-10 text-muted text-sm">ไม่พบข้อมูลที่ตรงกับเงื่อนไข</td></tr>`;
+      renderHistoryPager(1);
       return;
     }
 
     const typeLabels = { weekly:'ประจำสัปดาห์/เดือน', preopening:'ก่อนเปิดร้าน', incident:'ฉุกเฉิน' };
-    listEl.innerHTML = rows.map(({h, tenant})=>{
+    listEl.innerHTML = pageRows.map(({h, tenant})=>{
       const g = gradeMeta(h.grade);
       const typeLabel = typeLabels[h.type] || h.type || '-';
       return `<tr class="border-t border-soft">
@@ -3696,6 +4366,11 @@ async function openReportPreview({ record, tenant, mode, title, actionsHtml }){
 
   if (mode === 'dashboard'){   // ในโหมดนี้ "record" คือ stats ของแดชบอร์ด ไม่มีรูปให้เตรียม
     contentEl.innerHTML = renderDashboardReportContent(record);
+    requestAnimationFrame(fitReportPreviewScale);
+    return;
+  }
+  if (mode === 'periodic'){    // "record" คือสถิติของรอบเวลา — ไม่มีรูปหลักฐานเช่นกัน
+    contentEl.innerHTML = renderPeriodicReportContent(record);
     requestAnimationFrame(fitReportPreviewScale);
     return;
   }
@@ -4087,13 +4762,28 @@ async function capturePdfElementToPdf(elementId, filename){
   const el = document.getElementById(elementId);
   await waitForFonts();            // รอฟอนต์ไทยโหลดเสร็จ กันตัวอักษรเพี้ยน
   await waitForImages(el);         // และรอรูปทุกใบโหลดเสร็จ (จุดที่เคยพลาดใน v5)
-  const canvas = await html2canvas(el, H2C_OPTIONS);
-  const imgData = canvas.toDataURL('image/jpeg', 0.95);
+
+  // ถ่ายทีละหน้ากระดาษ แล้วประกอบเป็น PDF หลายหน้า
+  // ถ้าถ่ายทั้งก้อนรวดเดียวจะได้ PDF หน้าเดียวที่ยาวผิดสัดส่วน พอสั่งพิมพ์จริงจะถูกตัดกลางเอกสาร
+  const pages = Array.from(el.querySelectorAll('.report-page'));
+  const targets = pages.length ? pages : [el];
+
   const { jsPDF } = window.jspdf;
-  // ใช้ขนาดจริงของเนื้อหาที่ capture ได้ (หาร 2 กลับเพราะ scale:2) กัน PDF ยืด/บีบเพี้ยน
-  const pxWidth = canvas.width / 2, pxHeight = canvas.height / 2;
-  const pdf = new jsPDF({ orientation: pxWidth >= pxHeight ? 'landscape' : 'portrait', unit:'px', format:[pxWidth, pxHeight] });
-  pdf.addImage(imgData, 'JPEG', 0, 0, pxWidth, pxHeight);
+  let pdf = null;
+
+  for (let i = 0; i < targets.length; i++){
+    const canvas = await html2canvas(targets[i], H2C_OPTIONS);
+    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+    // หาร 2 กลับเพราะ capture ด้วย scale:2 — ไม่งั้น PDF จะยืดเป็นสองเท่า
+    const pxWidth = canvas.width / 2, pxHeight = canvas.height / 2;
+    const orientation = pxWidth >= pxHeight ? 'landscape' : 'portrait';
+    if (!pdf){
+      pdf = new jsPDF({ orientation, unit:'px', format:[pxWidth, pxHeight] });
+    } else {
+      pdf.addPage([pxWidth, pxHeight], orientation);
+    }
+    pdf.addImage(imgData, 'JPEG', 0, 0, pxWidth, pxHeight);
+  }
   pdf.save(filename);
 }
 
@@ -4187,6 +4877,154 @@ function typeLabelOf(type){
 }
 
 /* ---------- ชิ้นส่วนที่ใบรายงานและใบแจ้งเตือนใช้ร่วมกัน ----------
+
+   วงแหวนคะแนน (donut) วาดด้วย SVG ล้วน ไม่พึ่งไลบรารีกราฟ
+   เหตุผล: ใบรายงานถูก capture ด้วย html2canvas ซึ่งอ่าน <canvas> ของ Chart.js
+   ที่ยังวาดไม่เสร็จไม่ได้ ทำให้กราฟหายจากไฟล์ที่ export — SVG ถูกวาดพร้อม DOM จึงชัวร์กว่า
+
+   ตัวเลขเปล่าๆ อย่าง "83/100" บอกได้แค่ค่า แต่ไม่บอก "ใกล้เต็มแค่ไหน"
+   วงแหวนทำให้ผู้บริหารกวาดตาผ่านครั้งเดียวก็รู้ระดับทันทีโดยไม่ต้องตีความตัวเลข */
+function buildScoreRing(score, color){
+  const pct = Math.max(0, Math.min(100, Number(score) || 0));
+  const R = 46, C = 2 * Math.PI * R;                 // เส้นรอบวงใช้คำนวณความยาวเส้นประ
+  const dash = (pct / 100) * C;
+  return `
+    <svg viewBox="0 0 120 120" width="92" height="92" role="img" aria-label="คะแนน ${pct} จาก 100">
+      <circle cx="60" cy="60" r="${R}" fill="none" stroke="rgba(0,0,0,.09)" stroke-width="11"/>
+      <circle cx="60" cy="60" r="${R}" fill="none" stroke="${color}" stroke-width="11"
+              stroke-linecap="round" stroke-dasharray="${dash.toFixed(2)} ${(C - dash).toFixed(2)}"
+              transform="rotate(-90 60 60)"/>
+      <text x="60" y="58" text-anchor="middle" font-family="Prompt,sans-serif"
+            font-size="30" font-weight="800" fill="${color}">${pct}</text>
+      <text x="60" y="76" text-anchor="middle" font-family="Prompt,sans-serif"
+            font-size="12" font-weight="600" fill="#8A7B5E">/ 100</text>
+    </svg>`;
+}
+
+/* ตารางรายการตรวจ 5 คอลัมน์
+   ของเดิมเป็น "แถวสองฝั่ง" (ชื่อข้อซ้าย / สถานะขวา) โดยรายละเอียดที่ตรวจพบถูกยัดเป็น
+   บรรทัดเล็กใต้ชื่อข้อ ทำให้ตอนกวาดตาหาว่า "ตกข้อไหน พบอะไร กี่จุด" ต้องอ่านทีละบรรทัด
+   เปลี่ยนเป็นตารางจริงที่แต่ละข้อมูลอยู่คนละคอลัมน์ตรงกันทุกแถว — เป็นรูปแบบที่
+   เอกสารตรวจสอบมาตรฐานใช้กัน และผู้เช่าที่ต้องเซ็นรับทราบอ่านแล้วเข้าใจทันที */
+function buildChecklistTable(record){
+  const rows = CHECKLIST_ITEMS.map(item=>{
+    const ans  = record.checks ? record.checks[item.id] : null;
+    const st   = itemStatus(item, ans);
+    const meta = statusMeta(st.complete ? st.status : 'none');
+
+    // แยก "ผลการตรวจ" (คำตอบของช่องตัวเลือก) ออกจาก "รายละเอียดที่พบ" (จำนวน/ข้อความ)
+    // เพื่อให้สองคอลัมน์นี้ตรงกันทุกแถว อ่านเทียบข้ามแถวได้
+    const answers = [], details = [];
+    (item.fields || []).forEach(f=>{
+      if (!isFieldVisible(f, ans || {})) return;
+      const v = (ans || {})[f.key];
+      if (v === undefined || v === null || String(v).trim() === '') return;
+      if (f.type === 'choice') answers.push(String(v));
+      else details.push(`${f.label} ${v}${f.unit ? ' ' + f.unit : ''}`);
+    });
+
+    return `<tr>
+      <td class="rpt-td rpt-no" style="border-left:5px solid ${meta.color};">${item.no}</td>
+      <td class="rpt-td"><b>${escapeHtml(item.name)}</b></td>
+      <td class="rpt-td rpt-center">${answers.length ? escapeHtml(answers.join(' · ')) : '<span class="rpt-dim">—</span>'}</td>
+      <td class="rpt-td">${details.length ? escapeHtml(details.join(' · ')) : '<span class="rpt-dim">ไม่พบข้อบกพร่อง</span>'}</td>
+      <td class="rpt-td rpt-center" style="background:${meta.bg};">
+        <span style="color:${meta.color};font-weight:800;white-space:nowrap;">${meta.label}</span>
+      </td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <table class="rpt-table">
+      <thead>
+        <tr>
+          <th class="rpt-th" style="width:34px;">ข้อ</th>
+          <th class="rpt-th">หัวข้อตรวจ</th>
+          <th class="rpt-th rpt-center" style="width:112px;">ผลการตรวจ</th>
+          <th class="rpt-th" style="width:196px;">รายละเอียดที่ตรวจพบ</th>
+          <th class="rpt-th rpt-center" style="width:104px;">สถานะ</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+/* ตารางติดตามผลการแก้ไข — เว้นว่างไว้ให้กรอกด้วยปากกาตอนเข้าตรวจซ้ำ
+   แสดงเฉพาะเมื่อมีข้อบกพร่องจริง ถ้าร้านผ่านหมดก็ไม่ต้องมีตารางเปล่าให้เปลืองพื้นที่
+   เดิมเอกสารจบที่ "แจ้งว่าตกข้อไหน" แต่ไม่มีที่ให้บันทึกว่าแก้แล้วหรือยัง
+   เจ้าหน้าที่จึงต้องจดใส่กระดาษแยกแล้วมักหาไม่เจอตอนตรวจรอบถัดไป */
+function buildFollowUpTable(record){
+  const defects = getDefectItems(record.checks);
+  if (!defects.length) return '';
+  const rows = defects.map(d=>`
+    <tr>
+      <td class="rpt-td">${d.item.no}. ${escapeHtml(d.item.name)}</td>
+      <td class="rpt-td rpt-blank"></td>
+      <td class="rpt-td rpt-blank"></td>
+      <td class="rpt-td rpt-blank"></td>
+    </tr>`).join('');
+  return `
+    <div class="report-section-title">📋 บันทึกการติดตามผลการแก้ไข
+      <span class="report-section-count">กรอกเมื่อเข้าตรวจซ้ำ</span>
+    </div>
+    <table class="rpt-table" style="margin-bottom:14px;">
+      <thead>
+        <tr>
+          <th class="rpt-th">รายการที่ต้องแก้ไข</th>
+          <th class="rpt-th rpt-center" style="width:104px;">วันที่แก้ไขเสร็จ</th>
+          <th class="rpt-th rpt-center" style="width:88px;">ผลการติดตาม</th>
+          <th class="rpt-th rpt-center" style="width:104px;">ผู้ตรวจสอบซ้ำ</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+/* คำอธิบายเกณฑ์การประเมินท้ายเอกสาร
+   ผู้เช่าที่ได้รับใบนี้มักถามกลับว่า "ทำไมได้ 83 คะแนน" และ "ทำไมข้อนี้ถึงเป็นวิกฤต"
+   การอธิบายเกณฑ์ไว้ในเอกสารเลย ลดการโต้แย้งและทำให้เอกสารยืนอยู่ได้ด้วยตัวเอง */
+/* ประเมินความสูงของเนื้อหาใบรายงาน เพื่อตัดสินใจว่าต้องแยกเป็น 2 หน้าหรือไม่
+
+   ทำไมต้องประเมินเอง: html2canvas วัดความสูงจริงได้ก็ต่อเมื่อ DOM ถูกวาดแล้ว
+   แต่เราต้องรู้ "ก่อน" สร้าง HTML ว่าจะแบ่งหน้าอย่างไร จึงคำนวณจากค่าที่กำหนดไว้ใน CSS
+   ตัวเลขด้านล่างมาจากความสูงจริงของแต่ละบล็อกในสไตล์ชีต ถ้าปรับ CSS ต้องปรับตรงนี้ตาม
+
+   เดิมยัดทุกอย่างลงหน้าเดียวเสมอ พอแนบรูป 8 รูปพร้อมตารางติดตามผล เนื้อหาจะล้นกรอบ A4
+   ไปราว 260px — ไฟล์ PDF ยังอ่านได้ แต่พอสั่งพิมพ์ลงกระดาษจริงจะถูกตัดครึ่งกลางเอกสาร */
+const A4_CONTENT_HEIGHT = 1123;
+
+function estimateReportHeight(record){
+  const photos = (record.photos || []).filter(Boolean).length;
+  const photoRows = photos ? Math.ceil(Math.min(photos, 8) / 4) : 0;
+  const defects = getDefectItems(record.checks).length;
+
+  let h = 30 + 56;                                  // ระยะขอบบน-ล่างของหน้ากระดาษ
+  h += 78 + 28 + 74 + 114 + 54;                     // หัวกระดาษ · แถบเอกสาร · ข้อมูลร้าน · ผลสรุป · บทสรุป
+  h += 32 + 28 + CHECKLIST_ITEMS.length * 34;       // ตารางรายการตรวจ (หัวการ์ด + หัวตาราง + แถว)
+  if (record.notes || record.deadline) h += 66;     // กล่องข้อเสนอแนะ + เดดไลน์
+  h += defects ? (28 + 28 + defects * 30) : 0;      // ตารางติดตามผลการแก้ไข
+  h += photos ? (24 + photoRows * 89 + 11) : 40;    // หลักฐานภาพถ่าย
+  h += 58 + 100 + 32;                               // เกณฑ์ · ลายเซ็น · ท้ายกระดาษ
+  return h;
+}
+
+function buildCriteriaBox(){
+  const majorItems = CHECKLIST_ITEMS.filter(i=>i.severity === 'major').map(i=>i.no).join(', ');
+  return `
+    <div class="rpt-criteria">
+      <div class="rpt-criteria-title">เกณฑ์การประเมิน</div>
+      <div class="rpt-criteria-grid">
+        <div><b>คะแนนรายข้อ</b><br>ผ่าน = 100 · เฝ้าระวัง = 60 · ไม่ผ่าน = 0<br>
+             คะแนนรวมคือค่าเฉลี่ยของข้อที่ประเมินครบแล้ว</div>
+        <div><b>การจัดระดับผล</b><br>
+             <span style="color:#10B981;font-weight:700;">ผ่านมาตรฐาน</span> — ผ่านครบทุกข้อ<br>
+             <span style="color:#F59E0B;font-weight:700;">ข้อแก้ไขเล็กน้อย</span> — พบข้อบกพร่องที่ไม่กระทบความปลอดภัยโดยตรง<br>
+             <span style="color:#EF4444;font-weight:700;">ไม่ผ่านขั้นวิกฤต</span> — พบข้อบกพร่องในข้อ ${majorItems}</div>
+      </div>
+    </div>`;
+}
+
+/* กรอบรูปหลักฐานและช่องลายเซ็น — ใบรายงานกับใบแจ้งเตือนใช้ร่วมกัน
    แยกออกมาเพื่อไม่ให้ตรรกะ "รูปโหลดไม่ขึ้นต้องแสดงอะไร" แตกเป็นสองชุดแล้วเพี้ยนกัน */
 
 // กรอบรูปหลักฐาน — รูปที่โหลดไม่สำเร็จต้องขึ้นข้อความบอกให้ชัด ไม่ใช่กรอบเปล่า
@@ -4243,23 +5081,41 @@ function renderInspectionReportContent(record, tenant){
   const g = gradeMeta(record.grade);
   let passCount = 0;
   const totalCount = CHECKLIST_ITEMS.length;
-  const rows = CHECKLIST_ITEMS.map(item=>{
-    const ans = record.checks ? record.checks[item.id] : null;
-    const st = itemStatus(item, ans);
-    const meta = statusMeta(st.complete ? st.status : 'none');
+  CHECKLIST_ITEMS.forEach(item=>{
+    const st = itemStatus(item, record.checks ? record.checks[item.id] : null);
     if (st.complete && st.status === 'pass') passCount++;
-    const summary = answerSummary(item, ans);
-    return `<div class="report-check-row" style="background:${meta.bg};">
-      <span><b>${item.no}. ${escapeHtml(item.name)}</b>${summary ? `<br><span style="color:#6b6280;font-size:11.5px;">${escapeHtml(summary)}</span>` : ''}</span>
-      <span style="font-weight:700;color:${meta.color};white-space:nowrap;">${meta.label}</span>
+  });
+  const catCards = `
+    <div class="report-cat-card">
+      <div class="report-cat-title">🛡️ หัวข้อตรวจร้านค้าประจำเดือน — แผนกรักษาความปลอดภัย</div>
+      ${buildChecklistTable(record)}
     </div>`;
-  }).join('');
-  const catCards = `<div class="report-cat-card"><div class="report-cat-title">🛡️ หัวข้อตรวจร้านค้าประจำเดือน — แผนกรักษาความปลอดภัย</div>${rows}</div>`;
 
-  const photosHtml = buildReportPhotos(record);
-  const noteHtml   = buildReportNote(record);
+  const photosHtml   = buildReportPhotos(record);
+  const noteHtml     = buildReportNote(record);
+  const followUpHtml = buildFollowUpTable(record);
+  const criteriaHtml = buildCriteriaBox();
   const sigInspectorImg = buildSignatureBlock(record.sigInspector);
   const sigStoreImg     = buildSignatureBlock(record.sigStore);
+
+  // ถ้าเนื้อหาล้นกรอบ A4 ให้ย้ายส่วนหลักฐาน/ติดตามผล/เกณฑ์ ไปไว้หน้าที่ 2 เป็น "เอกสารแนบ"
+  // ซึ่งเป็นรูปแบบมาตรฐานของเอกสารตรวจสอบอยู่แล้ว ดีกว่าปล่อยให้หน้ากระดาษยืดจนพิมพ์แล้วถูกตัด
+  const twoPages   = estimateReportHeight(record) > A4_CONTENT_HEIGHT;
+  const totalPages = twoPages ? 2 : 1;
+
+  const signRowHtml = `
+    <div class="report-sign-row">
+      <div class="report-sign-box">${sigInspectorImg}
+        <div class="report-sign-line"></div>
+        <div class="report-sign-role">ลงชื่อผู้ตรวจสอบ (Inspector)</div>
+        <div class="report-sign-name">${escapeHtml(record.inspector || '')}</div>
+      </div>
+      <div class="report-sign-box">${sigStoreImg}
+        <div class="report-sign-line"></div>
+        <div class="report-sign-role">ลงชื่อผู้แทนร้านค้า (Store Rep.)</div>
+        <div class="report-sign-name">${escapeHtml(record.contact || tenant.contact || '')}</div>
+      </div>
+    </div>`;
 
   // บทสรุปผู้บริหาร — ประโยคเดียวที่อ่านแล้วรู้เรื่องทันทีโดยไม่ต้องไล่ตารางทีละข้อ
   // ผู้บริหารศูนย์การค้าส่วนใหญ่ดูเอกสารนี้ไม่เกิน 10 วินาที จึงต้องมีบรรทัดนี้ไว้บนสุด
@@ -4297,6 +5153,12 @@ function renderInspectionReportContent(record, tenant){
       <div style="text-align:right;font-size:11px;opacity:.95;flex-shrink:0;">เลขที่: <b>${record.id}</b><br>วันที่ตรวจ: <b>${toBuddhistDateStr(parseBEDateStr(record.date))}</b></div>
     </div>
     <div class="report-gold-rule"></div>
+    <!-- แถบระบุประเภทเอกสาร: ผู้รับเอกสารต้องรู้ตั้งแต่บรรทัดแรกว่าถืออะไรอยู่และเก็บไว้นานแค่ไหน -->
+    <div class="rpt-doc-band">
+      <span>ประเภทเอกสาร: <b>รายงานผลการตรวจประเมิน</b></span>
+      <span>หน่วยงาน: <b>แผนกรักษาความปลอดภัย</b></span>
+      <span>ชั้นความลับ: <b>ใช้ภายในองค์กร</b></span>
+    </div>
 
     <div class="report-summary-strip">
       <div class="report-store-block">
@@ -4305,42 +5167,55 @@ function renderInspectionReportContent(record, tenant){
         <div style="font-size:12px;color:#6b6280;margin-top:6px;">ผู้ติดต่อ: ${escapeHtml(record.contact || tenant.contact || '-')} (${escapeHtml(record.phone || tenant.phone || '-')})</div>
       </div>
       <div class="report-summary-row2">
-        <div class="report-grade-block" style="background:${g.bg};">
-          <div style="font-size:11.5px;font-weight:700;color:${g.color};margin-bottom:2px;">ผลสรุปการตรวจ</div>
-          <div style="font-size:13.5px;font-weight:800;color:${g.color};margin-bottom:6px;">${g.label}</div>
-          <div style="font-size:28px;font-weight:800;color:${g.color};line-height:1;">${record.score}<span style="font-size:13px;">/100</span></div>
+        <div class="report-grade-block" style="background:${g.bg};border-color:${g.color}33;">
+          ${buildScoreRing(record.score, g.color)}
+          <div style="font-size:13px;font-weight:800;color:${g.color};margin-top:6px;line-height:1.35;">${g.label}</div>
         </div>
         <div class="report-mini-stats">
           <div class="report-mini-stat"><span>ประเภทการตรวจ</span><b>${typeLabelOf(record.type)}</b></div>
           <div class="report-mini-stat"><span>ผู้ตรวจ</span><b>${escapeHtml(record.inspector)}</b></div>
-          <div class="report-mini-stat"><span>ผลรวมข้อตรวจ</span><b>ผ่าน ${passCount}/${totalCount} ข้อ</b></div>
+          <div class="report-mini-stat"><span>ผลรวมข้อตรวจ</span><b>ผ่าน ${passCount} จาก ${totalCount} ข้อ</b></div>
+          <div class="report-mini-stat"><span>ข้อที่ต้องดำเนินการ</span><b style="color:${g.color};">${totalCount - passCount} ข้อ</b></div>
         </div>
       </div>
     </div>
 
     ${summaryHtml}
     <div class="report-checklist-grid">${catCards}</div>
-    ${photosHtml}
     ${noteHtml}
+    ${twoPages ? '' : `${followUpHtml}${photosHtml}${criteriaHtml}`}
 
-    <div class="report-sign-row">
-      <div class="report-sign-box">${sigInspectorImg}
-        <div class="report-sign-line"></div>
-        <div class="report-sign-role">ลงชื่อผู้ตรวจสอบ (Inspector)</div>
-        <div class="report-sign-name">${escapeHtml(record.inspector || '')}</div>
+    ${signRowHtml}
+    ${reportFooter(record, 1, totalPages)}
+  </div>
+  ${twoPages ? `
+  <div class="report-page">
+    <div class="report-header report-header-slim">
+      <div style="display:flex;align-items:center;gap:11px;min-width:0;">
+        <div class="report-logo">${MALLGUARD_MARK_SVG}</div>
+        <div style="min-width:0;">
+          <div style="font-size:14px;font-weight:800;line-height:1.3;">เอกสารแนบ — หลักฐานและการติดตามผล</div>
+          <div style="font-size:10.5px;opacity:.9;">${escapeHtml(tenant.name || record.storeId)} · เลขที่ ${escapeHtml(record.id)}</div>
+        </div>
       </div>
-      <div class="report-sign-box">${sigStoreImg}
-        <div class="report-sign-line"></div>
-        <div class="report-sign-role">ลงชื่อผู้แทนร้านค้า (Store Rep.)</div>
-        <div class="report-sign-name">${escapeHtml(record.contact || tenant.contact || '')}</div>
-      </div>
+      <div style="text-align:right;font-size:10.5px;opacity:.95;flex-shrink:0;">วันที่ตรวจ<br><b>${toBuddhistDateStr(parseBEDateStr(record.date))}</b></div>
     </div>
+    <div class="report-gold-rule"></div>
+    ${followUpHtml}
+    ${photosHtml}
+    ${criteriaHtml}
+    ${reportFooter(record, 2, totalPages)}
+  </div>` : ''}`;
+}
 
+/* ท้ายกระดาษพร้อมเลขหน้า — เอกสารควบคุมต้องระบุเสมอว่ากำลังถือหน้าที่เท่าไรจากทั้งหมดกี่หน้า
+   ผู้รับจะได้รู้ทันทีว่าเอกสารครบหรือไม่ ถ้าเอกสารแนบหล่นหายจะสังเกตเห็นได้ */
+function reportFooter(record, page, totalPages){
+  return `
     <div class="report-footer">
       <span>ออกโดยระบบ MallGuard · เลขที่เอกสาร ${escapeHtml(record.id)} · พิมพ์เมื่อ ${toBuddhistDateStr(new Date())}</span>
-      <span>เอกสารนี้ออกโดยระบบอัตโนมัติ · A4</span>
-    </div>
-  </div>`;
+      <span>เอกสารควบคุม · ห้ามแก้ไขด้วยมือ · A4 หน้า ${page}/${totalPages}</span>
+    </div>`;
 }
 
 /* เนื้อหา "ใบแจ้งเตือน" — เอกสารสั้น เน้นสีแดง/ส้มให้เด่นชัด สำหรับพิมพ์แจ้งร้านค้าที่มีข้อบกพร่อง
@@ -4381,6 +5256,11 @@ function renderWarningNoticeContent(record, tenant){
       <div style="text-align:right;font-size:11px;flex-shrink:0;">เลขที่: <b>${record.id}</b><br>วันที่ตรวจ: <b>${toBuddhistDateStr(parseBEDateStr(record.date))}</b></div>
     </div>
     <div class="report-gold-rule"></div>
+    <div class="rpt-doc-band">
+      <span>ประเภทเอกสาร: <b>หนังสือแจ้งเตือนผู้เช่า</b></span>
+      <span>หน่วยงาน: <b>แผนกรักษาความปลอดภัย</b></span>
+      <span>ชั้นความลับ: <b>ใช้ภายในองค์กร</b></span>
+    </div>
 
     <div class="report-store-block" style="margin-bottom:16px;">
       <div style="font-size:17px;font-weight:800;">${escapeHtml(tenant.name || record.storeId)}</div>
@@ -4482,6 +5362,380 @@ function renderDashboardReportContent(s){
   </div>`;
 }
 
+/* ================================================================
+   ===============  รายงานสรุปตามรอบเวลา (สัปดาห์/เดือน/ปี)  ========
+   ออกแบบให้เป็นเอกสารที่นำเข้าที่ประชุมได้ทันที ไม่ใช่แค่กองตัวเลข
+   ลำดับการอ่าน: สรุปเชิงบริหาร -> ตัวเลขหลักเทียบรอบก่อน -> หัวข้อที่ตกบ่อย
+                 -> โซนที่ต้องดูแล -> ร้านที่ต้องติดตาม
+   ================================================================ */
+
+/* เขียนสรุปเชิงบริหารเป็นภาษาคน — ประโยคที่หัวหน้าแผนกหยิบไปพูดในที่ประชุมได้เลย
+   เดิมรายงานมีแต่ตัวเลข ผู้อ่านต้องตีความเอง ซึ่งแต่ละคนตีความไม่เหมือนกัน */
+function buildPeriodNarrative(st, cmp){
+  if (!st.inspectionCount){
+    return `ยังไม่มีการบันทึกผลการตรวจใน${st.period.label} จึงยังไม่สามารถประเมินภาพรวมของรอบนี้ได้`;
+  }
+  const parts = [];
+  parts.push(`${st.period.label} ดำเนินการตรวจประเมินรวม ${numFmt(st.inspectionCount)} ครั้ง ` +
+             `ครอบคลุมร้านค้า ${numFmt(st.storesInspected)} ร้าน จากทั้งหมด ${numFmt(st.totalStores)} ร้าน ` +
+             `(คิดเป็น ${st.coverageRate}% ของผู้เช่าที่เปิดดำเนินการ)`);
+
+  const trend = cmp.hasPrevData
+    ? (cmp.avgScore.value > 0 ? `สูงขึ้นจากรอบก่อน ${cmp.avgScore.value} คะแนน`
+      : cmp.avgScore.value < 0 ? `ลดลงจากรอบก่อน ${Math.abs(cmp.avgScore.value)} คะแนน`
+      : 'เท่ากับรอบก่อน')
+    : 'ยังไม่มีข้อมูลรอบก่อนหน้าให้เปรียบเทียบ';
+  parts.push(`คะแนนเฉลี่ยอยู่ที่ ${st.avgScore} คะแนน ${trend} ` +
+             `โดยมีอัตราผ่านมาตรฐาน ${st.complianceRate}%`);
+
+  if (st.counts.major > 0){
+    parts.push(`พบข้อบกพร่องขั้นวิกฤต ${numFmt(st.counts.major)} กรณี ซึ่งต้องเร่งติดตามการแก้ไขเป็นลำดับแรก`);
+  } else if (st.counts.minor > 0){
+    parts.push(`ไม่พบข้อบกพร่องขั้นวิกฤต มีเพียงข้อแก้ไขเล็กน้อย ${numFmt(st.counts.minor)} กรณี`);
+  } else {
+    parts.push('ไม่พบข้อบกพร่องในรอบนี้ ร้านค้าทุกแห่งที่เข้าตรวจผ่านเกณฑ์มาตรฐานทั้งหมด');
+  }
+
+  const worst = st.itemStats.find(x=> x.issues > 0);
+  if (worst){
+    parts.push(`หัวข้อที่ตรวจพบปัญหามากที่สุดคือ ข้อ ${worst.item.no} ${worst.item.name} ` +
+               `จำนวน ${numFmt(worst.issues)} ร้าน (${worst.failRate}% ของร้านที่ประเมินข้อนี้)` +
+               (worst.qty ? ` รวมที่ตรวจพบ ${numFmt(worst.qty)} จุด` : ''));
+  }
+  if (st.repeatCount > 0){
+    parts.push(`มีร้านค้า ${numFmt(st.repeatCount)} ร้านที่พบข้อบกพร่องซ้ำจากรอบก่อนหน้า ` +
+               `ควรยกระดับมาตรการติดตามและกำหนดผู้รับผิดชอบเฉพาะราย`);
+  }
+  return parts.join(' ');
+}
+
+function renderPeriodicReportContent(st){
+  const cmp = comparePeriod(st);
+  const typeName = { week:'รายสัปดาห์', month:'รายเดือน', year:'รายปี' }[st.period.type] || 'ตามรอบเวลา';
+
+  // ---- ตัวเลขหลัก 4 ตัว พร้อมส่วนต่างเทียบรอบก่อน ----
+  const kpis = [
+    { label:'จำนวนครั้งที่ตรวจ', value:numFmt(st.inspectionCount), unit:'ครั้ง',
+      delta: cmp.hasPrevData ? deltaChip(cmp.inspectionCount, ' ครั้ง', true) : '', color:'#8A6510' },
+    { label:'คะแนนเฉลี่ย', value:st.avgScore, unit:'/ 100',
+      delta: cmp.hasPrevData ? deltaChip(cmp.avgScore, ' คะแนน', true) : '', color:'#C9971B' },
+    { label:'อัตราผ่านมาตรฐาน', value:st.complianceRate + '%', unit:'',
+      delta: cmp.hasPrevData ? deltaChip(cmp.complianceRate, '%', true) : '', color:'#0E9F6E' },
+    { label:'ข้อบกพร่องขั้นวิกฤต', value:numFmt(st.counts.major), unit:'กรณี',
+      delta: cmp.hasPrevData ? deltaChip(cmp.majorCount, ' กรณี', false) : '', color:'#C2410C' },
+  ];
+  const kpiHtml = kpis.map(k=>`
+    <div class="rpt-kpi">
+      <div class="rpt-kpi-label">${k.label}</div>
+      <div class="rpt-kpi-value" style="color:${k.color};">${k.value}<span class="rpt-kpi-unit">${k.unit}</span></div>
+      ${k.delta || '<span class="rpt-delta is-flat">ไม่มีข้อมูลรอบก่อน</span>'}
+    </div>`).join('');
+
+  // ---- สัดส่วนผลตรวจแบบแถบเดียว อ่านง่ายกว่าวงกลมเมื่อพิมพ์ขาวดำ ----
+  const total = Math.max(st.inspectionCount, 1);
+  const seg = (n, color, label)=> n ? `<div style="width:${(n/total*100).toFixed(1)}%;background:${color};" title="${label}"></div>` : '';
+  const barHtml = `
+    <div class="rpt-stackbar">
+      ${seg(st.counts.compliant, '#10B981', 'ผ่านมาตรฐาน')}
+      ${seg(st.counts.minor, '#F59E0B', 'ข้อแก้ไขเล็กน้อย')}
+      ${seg(st.counts.major, '#EF4444', 'ไม่ผ่านขั้นวิกฤต')}
+    </div>
+    <div class="rpt-legend">
+      <span><i style="background:#10B981;"></i>ผ่านมาตรฐาน ${numFmt(st.counts.compliant)} ครั้ง</span>
+      <span><i style="background:#F59E0B;"></i>ข้อแก้ไขเล็กน้อย ${numFmt(st.counts.minor)} ครั้ง</span>
+      <span><i style="background:#EF4444;"></i>ไม่ผ่านขั้นวิกฤต ${numFmt(st.counts.major)} ครั้ง</span>
+    </div>`;
+
+  // ---- อันดับหัวข้อที่ตกบ่อยที่สุด ----
+  const itemRows = st.itemStats.map(x=>{
+    const pct = x.failRate;
+    const barColor = pct >= 40 ? '#EF4444' : pct >= 15 ? '#F59E0B' : '#10B981';
+    return `<tr>
+      <td class="rpt-td rpt-no">${x.item.no}</td>
+      <td class="rpt-td">${escapeHtml(x.item.name)}</td>
+      <td class="rpt-td rpt-center">${numFmt(x.evaluated)}</td>
+      <td class="rpt-td rpt-center"><b style="color:${x.issues ? '#C2410C' : '#0E9F6E'};">${numFmt(x.issues)}</b></td>
+      <td class="rpt-td rpt-center">${x.qty ? numFmt(x.qty) : '<span class="rpt-dim">—</span>'}</td>
+      <td class="rpt-td">
+        <div class="rpt-minibar"><span style="width:${pct}%;background:${barColor};"></span></div>
+        <span class="rpt-minibar-num">${pct}%</span>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // ---- โซนที่ต้องดูแล ----
+  const zoneRows = st.zones.length ? st.zones.map(z=>`
+    <tr>
+      <td class="rpt-td">${escapeHtml(z.zone)}</td>
+      <td class="rpt-td rpt-center">${numFmt(z.count)}</td>
+      <td class="rpt-td rpt-center"><b style="color:${z.avg >= 90 ? '#0E9F6E' : z.avg >= 70 ? '#B45309' : '#DC2626'};">${z.avg}</b></td>
+      <td class="rpt-td rpt-center">${z.issues ? numFmt(z.issues) : '<span class="rpt-dim">—</span>'}</td>
+    </tr>`).join('')
+    : `<tr><td class="rpt-td rpt-center" colspan="4"><span class="rpt-dim">ยังไม่มีข้อมูลในรอบนี้</span></td></tr>`;
+
+  // ---- ร้านค้าที่ต้องติดตาม (จำกัด 12 รายการแรกให้พอดีหน้ากระดาษ) ----
+  const MAX_WATCH = 12;
+  const watchShown = st.watchList.slice(0, MAX_WATCH);
+  const watchRows = watchShown.length ? watchShown.map((h,i)=>{
+    const t = findTenant(h.storeId) || {};
+    const g = gradeMeta(h.grade);
+    const defects = getDefectItems(h.checks).map(d=> `ข้อ ${d.item.no}`).join(', ') || '—';
+    return `<tr>
+      <td class="rpt-td rpt-no">${i+1}</td>
+      <td class="rpt-td"><b>${escapeHtml(t.name || h.storeId)}</b>${h.__repeat ? '<span class="rpt-repeat">ตกซ้ำ</span>' : ''}
+        <br><span class="rpt-dim" style="font-size:10px;">${escapeHtml(h.storeId)} · ${escapeHtml(t.zone || '-')}</span></td>
+      <td class="rpt-td rpt-center">${toBuddhistDateStr(parseBEDateStr(h.date))}</td>
+      <td class="rpt-td rpt-center"><span style="color:${g.color};font-weight:800;">${g.label}</span></td>
+      <td class="rpt-td rpt-center"><b>${h.score}</b></td>
+      <td class="rpt-td rpt-center" style="font-size:11px;">${escapeHtml(defects)}</td>
+    </tr>`;
+  }).join('')
+    : `<tr><td class="rpt-td rpt-center" colspan="6"><span style="color:#0E9F6E;font-weight:700;">ไม่มีร้านค้าที่ต้องติดตามในรอบนี้</span></td></tr>`;
+
+  const watchMore = st.watchList.length > MAX_WATCH
+    ? `<div class="rpt-more">และอีก ${numFmt(st.watchList.length - MAX_WATCH)} ร้าน — ดูรายการทั้งหมดได้จากไฟล์ Excel</div>` : '';
+
+  // เนื้อหายาวเกินหน้าเดียวแน่นอนเมื่อมีร้านต้องติดตามหลายราย จึงแยกหน้า 2 ตั้งแต่ต้น
+  const twoPages = st.watchList.length > 0 || st.zones.length > 6;
+  const totalPages = twoPages ? 2 : 1;
+
+  const headerBlock = (subtitle, page)=>`
+    <div class="report-header">
+      <div style="display:flex;align-items:center;gap:12px;min-width:0;">
+        <div style="background:#fff;border-radius:10px;padding:5px 7px;flex-shrink:0;display:flex;align-items:center;"><img src="${SEACON_LOGO_DATA_URL}" style="height:26px;width:auto;display:block;"></div>
+        <div class="report-logo">${MALLGUARD_MARK_SVG}</div>
+        <div style="min-width:0;">
+          <div style="font-size:16px;font-weight:800;line-height:1.25;">รายงานสรุปผลการตรวจประเมินร้านค้า ${typeName}</div>
+          <div style="font-size:11px;opacity:.9;">${escapeHtml(subtitle)}</div>
+        </div>
+      </div>
+      <div style="text-align:right;font-size:10.5px;opacity:.95;flex-shrink:0;">ออกรายงาน<br><b>${toBuddhistDateStr(new Date())}</b></div>
+    </div>
+    <div class="report-gold-rule"></div>`;
+
+  const docBand = `
+    <div class="rpt-doc-band">
+      <span>ประเภทเอกสาร: <b>รายงานสรุป${typeName}</b></span>
+      <span>หน่วยงาน: <b>แผนกรักษาความปลอดภัย</b></span>
+      <span>ชั้นความลับ: <b>ใช้ภายในองค์กร</b></span>
+    </div>`;
+
+  const page2 = !twoPages ? '' : `
+  <div class="report-page">
+    ${headerBlock(st.period.label + ' · เอกสารแนบ', 2)}
+    <div class="report-section-title">🏢 ผลการตรวจแยกตามโซน
+      <span class="report-section-count">เรียงจากคะแนนต่ำสุด</span>
+    </div>
+    <table class="rpt-table" style="margin-bottom:14px;">
+      <thead><tr>
+        <th class="rpt-th">โซน</th>
+        <th class="rpt-th rpt-center" style="width:96px;">จำนวนครั้งที่ตรวจ</th>
+        <th class="rpt-th rpt-center" style="width:88px;">คะแนนเฉลี่ย</th>
+        <th class="rpt-th rpt-center" style="width:96px;">ครั้งที่พบปัญหา</th>
+      </tr></thead>
+      <tbody>${zoneRows}</tbody>
+    </table>
+
+    <div class="report-section-title">📌 ร้านค้าที่ต้องติดตามการแก้ไข
+      <span class="report-section-count">${numFmt(st.watchList.length)} ร้าน${st.repeatCount ? ` · ตกซ้ำ ${numFmt(st.repeatCount)} ร้าน` : ''}</span>
+    </div>
+    <table class="rpt-table">
+      <thead><tr>
+        <th class="rpt-th" style="width:32px;">#</th>
+        <th class="rpt-th">ร้านค้า</th>
+        <th class="rpt-th rpt-center" style="width:96px;">วันที่ตรวจ</th>
+        <th class="rpt-th rpt-center" style="width:104px;">ผลการตรวจ</th>
+        <th class="rpt-th rpt-center" style="width:56px;">คะแนน</th>
+        <th class="rpt-th rpt-center" style="width:88px;">ข้อที่บกพร่อง</th>
+      </tr></thead>
+      <tbody>${watchRows}</tbody>
+    </table>
+    ${watchMore}
+
+    <div class="report-sign-row">
+      <div class="report-sign-box"><div class="report-sign-blank"></div><div class="report-sign-line"></div>
+        <div class="report-sign-role">ผู้จัดทำรายงาน</div><div class="report-sign-name">แผนกรักษาความปลอดภัย</div></div>
+      <div class="report-sign-box"><div class="report-sign-blank"></div><div class="report-sign-line"></div>
+        <div class="report-sign-role">ผู้ตรวจสอบ / อนุมัติ</div><div class="report-sign-name">&nbsp;</div></div>
+    </div>
+    ${periodFooter(st, 2, totalPages)}
+  </div>`;
+
+  return `
+  <div class="report-page">
+    ${headerBlock(st.period.label, 1)}
+    ${docBand}
+
+    <div class="report-exec-summary" style="border-left-color:#C9971B;">
+      <div class="report-exec-label">สรุปเชิงบริหาร</div>
+      <div class="report-exec-text" style="font-weight:500;">${escapeHtml(buildPeriodNarrative(st, cmp))}</div>
+    </div>
+
+    <div class="rpt-kpi-grid">${kpiHtml}</div>
+    ${st.badDateCount ? `<div class="rpt-warn-note">⚠️ พบผลการตรวจ ${numFmt(st.badDateCount)} รายการที่ข้อมูลวันที่ไม่สมบูรณ์ จึงไม่ถูกนับรวมในรอบเวลาใด กรุณาตรวจสอบและแก้ไขวันที่ในหน้าประวัติการตรวจ</div>` : ''}
+
+    <div class="report-section-title">📊 สัดส่วนผลการตรวจในรอบนี้
+      <span class="report-section-count">รวม ${numFmt(st.inspectionCount)} ครั้ง</span>
+    </div>
+    ${barHtml}
+
+    <div class="report-section-title" style="margin-top:12px;">🔍 หัวข้อที่ตรวจพบปัญหามากที่สุด
+      <span class="report-section-count">เรียงจากมากไปน้อย</span>
+    </div>
+    <table class="rpt-table">
+      <thead><tr>
+        <th class="rpt-th" style="width:32px;">ข้อ</th>
+        <th class="rpt-th">หัวข้อตรวจ</th>
+        <th class="rpt-th rpt-center" style="width:72px;">ประเมินแล้ว</th>
+        <th class="rpt-th rpt-center" style="width:72px;">พบปัญหา</th>
+        <th class="rpt-th rpt-center" style="width:72px;">รวมจุดที่พบ</th>
+        <th class="rpt-th" style="width:126px;">สัดส่วนที่พบปัญหา</th>
+      </tr></thead>
+      <tbody>${itemRows}</tbody>
+    </table>
+
+    ${twoPages ? '' : `
+    <div class="report-sign-row">
+      <div class="report-sign-box"><div class="report-sign-blank"></div><div class="report-sign-line"></div>
+        <div class="report-sign-role">ผู้จัดทำรายงาน</div><div class="report-sign-name">แผนกรักษาความปลอดภัย</div></div>
+      <div class="report-sign-box"><div class="report-sign-blank"></div><div class="report-sign-line"></div>
+        <div class="report-sign-role">ผู้ตรวจสอบ / อนุมัติ</div><div class="report-sign-name">&nbsp;</div></div>
+    </div>`}
+    ${periodFooter(st, 1, totalPages)}
+  </div>
+  ${page2}`;
+}
+
+function periodFooter(st, page, totalPages){
+  return `
+    <div class="report-footer">
+      <span>ออกโดยระบบ MallGuard · ${escapeHtml(st.period.label)} · พิมพ์เมื่อ ${toBuddhistDateStr(new Date())}</span>
+      <span>เอกสารควบคุม · A4 หน้า ${page}/${totalPages}</span>
+    </div>`;
+}
+
+/* ---------- ตัวควบคุมรายงานตามรอบบนหน้าแดชบอร์ด ---------- */
+function getSelectedPeriod(){
+  const typeEl = document.getElementById('periodType');
+  const offEl  = document.getElementById('periodOffset');
+  return getPeriodRange(typeEl ? typeEl.value : 'month', offEl ? parseInt(offEl.value, 10) : 0);
+}
+
+/* เติมตัวเลือก "รอบที่เท่าไร" ให้สอดคล้องกับชนิดรอบที่เลือก
+   ต้องสร้างใหม่ทุกครั้งที่เปลี่ยนชนิด เพราะป้ายกำกับคนละแบบ (สัปดาห์นี้ / เดือนที่แล้ว / ปี 2567) */
+function refreshPeriodOffsetOptions(){
+  const typeEl = document.getElementById('periodType');
+  const offEl  = document.getElementById('periodOffset');
+  if (!typeEl || !offEl) return;
+  const type = typeEl.value;
+  const keep = offEl.value;
+  const howMany = type === 'year' ? 3 : (type === 'month' ? 12 : 8);
+  let html = '';
+  for (let i = 0; i < howMany; i++){
+    const p = getPeriodRange(type, -i);
+    html += `<option value="${-i}">${escapeHtml(p.shortLabel)}</option>`;
+  }
+  offEl.innerHTML = html;
+  // คงตัวเลือกเดิมไว้ถ้ายังมีอยู่ในชุดใหม่ ผู้ใช้จะได้ไม่ถูกดีดกลับไปรอบปัจจุบันทุกครั้ง
+  if (Array.from(offEl.options).some(o=> o.value === keep)) offEl.value = keep;
+  updatePeriodSummaryLine();
+}
+
+/* บรรทัดสรุปย่อใต้ตัวเลือก ให้เห็นผลทันทีก่อนกดเปิดรายงานเต็ม */
+function updatePeriodSummaryLine(){
+  const el = document.getElementById('periodSummaryLine');
+  if (!el) return;
+  try {
+    const st = computePeriodStats(getSelectedPeriod());
+    el.innerHTML = st.inspectionCount
+      ? `<b>${escapeHtml(st.period.label)}</b> · ตรวจ ${numFmt(st.inspectionCount)} ครั้ง · ${numFmt(st.storesInspected)}/${numFmt(st.totalStores)} ร้าน (${st.coverageRate}%) · คะแนนเฉลี่ย <b>${st.avgScore}</b> · ผ่านมาตรฐาน ${st.complianceRate}%`
+      : `<b>${escapeHtml(st.period.label)}</b> · ยังไม่มีผลการตรวจในรอบนี้`;
+  } catch(err){
+    console.error('updatePeriodSummaryLine error:', err);
+    el.textContent = 'คำนวณสรุปรอบนี้ไม่สำเร็จ';
+  }
+}
+
+function previewPeriodicReport(){
+  const st = computePeriodStats(getSelectedPeriod());
+  if (!st.inspectionCount){
+    Swal.fire({ icon:'info', title:'ยังไม่มีข้อมูลในรอบนี้',
+      text:`ไม่พบผลการตรวจใน${st.period.label} กรุณาเลือกรอบเวลาอื่น`, confirmButtonColor:'#C9971B' });
+    return;
+  }
+  openReportPreview({
+    record: st, tenant: null, mode: 'periodic',
+    title: `📄 รายงานสรุป${{week:'รายสัปดาห์',month:'รายเดือน',year:'รายปี'}[st.period.type]}`,
+    actionsHtml: `
+      <button class="btn btn-outline" onclick="closeReportPreview()">ปิด</button>
+      <button class="btn btn-outline" onclick="exportPeriodicExcel()">📊 Excel</button>
+      <button class="btn btn-outline" onclick="exportPeriodicReport('png')">🖼️ PNG</button>
+      <button class="btn btn-grad" style="--g1:var(--grad-1a);--g2:var(--grad-1b);" onclick="exportPeriodicReport('pdf')">📥 ดาวน์โหลด PDF</button>`
+  });
+}
+
+function exportPeriodicReport(format){
+  const st = computePeriodStats(getSelectedPeriod());
+  const tag = { week:'Weekly', month:'Monthly', year:'Yearly' }[st.period.type] || 'Period';
+  const stamp = `${st.period.start.getFullYear()+543}${String(st.period.start.getMonth()+1).padStart(2,'0')}${String(st.period.start.getDate()).padStart(2,'0')}`;
+  fillAndExport('pdfDashboardReport', renderPeriodicReportContent(st),
+    `MallGuard-${tag}-${stamp}.${format}`, format);
+}
+
+/* Excel แยก 3 ชีต — แต่ละชีตตอบคำถามคนละข้อ
+   ถ้ายัดรวมชีตเดียวจะกรอง/ทำ Pivot ต่อไม่ได้ ซึ่งเป็นสิ่งที่ฝ่ายบริหารทำเป็นประจำ */
+function exportPeriodicExcel(){
+  try {
+    const st = computePeriodStats(getSelectedPeriod());
+    if (!st.inspectionCount){
+      showToast('ยังไม่มีผลการตรวจในรอบนี้', 'error');
+      return;
+    }
+    const cmp = comparePeriod(st);
+
+    const summary = [
+      { 'รายการ':'รอบรายงาน', 'ค่า':st.period.label, 'รอบก่อนหน้า':cmp.prev.period.label },
+      { 'รายการ':'จำนวนครั้งที่ตรวจ', 'ค่า':st.inspectionCount, 'รอบก่อนหน้า':cmp.prev.inspectionCount },
+      { 'รายการ':'ร้านค้าที่เข้าตรวจ (ร้าน)', 'ค่า':st.storesInspected, 'รอบก่อนหน้า':cmp.prev.storesInspected },
+      { 'รายการ':'ร้านค้าทั้งหมด (Active)', 'ค่า':st.totalStores, 'รอบก่อนหน้า':cmp.prev.totalStores },
+      { 'รายการ':'ความครอบคลุม (%)', 'ค่า':st.coverageRate, 'รอบก่อนหน้า':cmp.prev.coverageRate },
+      { 'รายการ':'คะแนนเฉลี่ย', 'ค่า':st.avgScore, 'รอบก่อนหน้า':cmp.prev.avgScore },
+      { 'รายการ':'อัตราผ่านมาตรฐาน (%)', 'ค่า':st.complianceRate, 'รอบก่อนหน้า':cmp.prev.complianceRate },
+      { 'รายการ':'ผ่านมาตรฐาน (ครั้ง)', 'ค่า':st.counts.compliant, 'รอบก่อนหน้า':cmp.prev.counts.compliant },
+      { 'รายการ':'ข้อแก้ไขเล็กน้อย (ครั้ง)', 'ค่า':st.counts.minor, 'รอบก่อนหน้า':cmp.prev.counts.minor },
+      { 'รายการ':'ไม่ผ่านขั้นวิกฤต (ครั้ง)', 'ค่า':st.counts.major, 'รอบก่อนหน้า':cmp.prev.counts.major },
+      { 'รายการ':'ร้านที่ต้องติดตาม (ร้าน)', 'ค่า':st.watchList.length, 'รอบก่อนหน้า':cmp.prev.watchList.length },
+      { 'รายการ':'ร้านที่ตกซ้ำจากรอบก่อน (ร้าน)', 'ค่า':st.repeatCount, 'รอบก่อนหน้า':'-' },
+    ];
+
+    const byItem = st.itemStats.map(x=>({
+      'ข้อ': x.item.no, 'หัวข้อตรวจ': x.item.name,
+      'ระดับความรุนแรง': x.item.severity === 'major' ? 'วิกฤต' : 'เล็กน้อย',
+      'ประเมินแล้ว (ครั้ง)': x.evaluated, 'ไม่ผ่าน (ครั้ง)': x.failed,
+      'เฝ้าระวัง (ครั้ง)': x.warned, 'พบปัญหารวม (ครั้ง)': x.issues,
+      'สัดส่วนที่พบปัญหา (%)': x.failRate, 'รวมจำนวนที่ตรวจพบ': x.qty || '',
+    }));
+
+    const byStore = st.records.map(h=>{
+      const row = inspectionToExportRow(h);
+      row['ตกซ้ำจากรอบก่อน'] = st.watchList.some(w=> w.id === h.id && w.__repeat) ? 'ใช่' : '';
+      return row;
+    });
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summary), 'สรุปภาพรวม');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(byItem), 'สรุปรายข้อตรวจ');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(byStore), 'รายละเอียดรายร้าน');
+
+    const tag = { week:'Weekly', month:'Monthly', year:'Yearly' }[st.period.type] || 'Period';
+    XLSX.writeFile(wb, `MallGuard-${tag}-${st.period.start.getFullYear()+543}${String(st.period.start.getMonth()+1).padStart(2,'0')}.xlsx`);
+    showToast('Export Excel สำเร็จ (3 ชีต)', 'success');
+  } catch(err){
+    console.error('exportPeriodicExcel error:', err);
+    Swal.fire({ icon:'error', title:'Export Excel ไม่สำเร็จ', text:String(err && err.message || err), confirmButtonColor:'#C9971B' });
+  }
+}
+
 /* ดูตัวอย่างรายงานสรุปแดชบอร์ดก่อนดาวน์โหลด PDF จริง */
 function previewDashboardReport(){
   const s = computeDashboardStats();
@@ -4498,7 +5752,7 @@ function previewDashboardReport(){
 /* แปลงผลตรวจ 1 รายการเป็นแถวตาราง พร้อมคอลัมน์แยกของทั้ง 6 หัวข้อ
    แยกเป็นฟังก์ชันเดียวเพื่อให้ Excel และ CSV ได้คอลัมน์ชุดเดียวกันเสมอ */
 function inspectionToExportRow(h){
-  const t = TENANTS.find(x=>normalizeStoreId(x.storeId)===normalizeStoreId(h.storeId)) || {};
+  const t = findTenant(h.storeId) || {};   // ต้องผ่าน findTenant เสมอ ไม่งั้นรหัสที่มีช่องว่างติดมาจะหาไม่เจอ
   const row = {
     'วันที่ตรวจ': toBuddhistDateStr(parseBEDateStr(h.date)),
     'รหัสร้าน': h.storeId, 'ชื่อร้าน': t.name||'', 'โซน': t.zone||'', 'ชั้น': t.floor||'',
