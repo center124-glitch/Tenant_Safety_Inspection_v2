@@ -1,6 +1,40 @@
 <!DOCTYPE html>
 <!-- ============================================================
   MallGuard — Tenant Safety & Standards Inspection System
+  Version 15 (v15) — แก้ตัวอักษรทับซ้อน + จัดผังหน้า 1 ใหม่
+  ---------------------------------------------------------------
+  [บั๊ก] ตัวเลขกับตัวหนังสือในการ์ด KPI ของรายงานทับซ้อนกัน
+  สาเหตุ: .rpt-kpi-value ตั้ง line-height:1.05 ซึ่งพอดีสำหรับตัวเลขอารบิก
+  แต่ "ไม่พอ" สำหรับภาษาไทยที่มีสระบนและวรรณยุกต์ซ้อนกันสองชั้น (เช่น "ครั้ง" = ั + ้)
+  ที่ font-size 23px กล่องบรรทัดสูงเพียง 24.2px ขณะที่ตัวอักษรไทยต้องการ ~33.4px
+  ส่วนที่ล้น 9.2px จึงไปทับข้อความบรรทัดบน — เห็นชัดในการ์ดทั้ง 4 ใบ
+  แก้โดยตั้ง line-height ขั้นต่ำ 1.45 ให้ทุกข้อความไทยในเอกสาร และจัดการ์ดเป็น flex column
+  ที่กำหนดระยะห่างด้วย gap แทน margin ซึ่งควบคุมได้แน่นอนกว่า
+
+  [จัดผังใหม่ตามที่ผู้ใช้ขอ]
+  ย้าย "สรุปเชิงบริหาร" จากบนสุดลงไปไว้ท้ายหน้า 1
+  เหตุผลเชิงการอ่าน: ผู้อ่านเห็นตัวเลขและตารางก่อน แล้วจึงอ่านบทสรุปเป็นการปิดท้าย
+  ซึ่งเป็นลำดับเดียวกับรายงานการประชุมและงบการเงิน (ข้อมูล -> ข้อสรุป)
+  พร้อมขยับผังเป็น 2 คอลัมน์ที่สมดุลขึ้น และเพิ่มระยะหายใจระหว่างบล็อก
+
+  Version 14 (v14) — รายงานสรุปแนวนอนแบ่งเป็น 2 หน้า
+  ---------------------------------------------------------------
+  [ปัญหาที่พบจากไฟล์ที่ export จริง]
+  รายงานสรุปแบบหน้าเดียวล้นกรอบ A4 แนวนอนไป 310px (39%) — สั่งพิมพ์จริงจะถูกตัด
+  สาเหตุ: ค่าประเมินความสูงเดิมคิดแถวตารางละ 26px แต่ของจริงข้อความตัดบรรทัด
+  ("Gugu Ckicken", "ไม่ผ่านขั้นวิกฤต", "1, 2, 3, 4, 5, 6" ล้วนกินสองบรรทัด)
+  ทำให้แถวสูงจริง 60-90px คือ 2-3 เท่าของที่ประเมินไว้
+  อีกทั้งคอลัมน์ซ้ายจบที่ ~1050px ขณะที่คอลัมน์ขวายาวถึง ~1480px
+  เหลือช่องว่างใต้คอลัมน์ซ้ายราว 430px เสียเปล่า
+
+  [วิธีแก้] แบ่งเป็น 2 หน้า แล้วให้แต่ละหน้าทำหน้าที่ของตัวเองชัดเจน
+    หน้า 1 "ภาพรวมและการวิเคราะห์" — สรุปเชิงบริหาร · ตัวเลขหลัก · สัดส่วน ·
+            หัวข้อที่พบปัญหา · ผลแยกโซน · เกณฑ์การประเมิน   (จัด 2 คอลัมน์)
+    หน้า 2 "รายชื่อร้านค้าที่ต้องติดตาม" — ตารางเต็มความกว้าง 1063px
+            คอลัมน์กว้างพอให้ชื่อร้านและสถานะอยู่บรรทัดเดียว ไม่ตัดคำ
+            รองรับได้ถึง 18 ร้านต่อหน้า (เดิมบีบไว้ 14 ร้านแล้วยังล้น)
+  พร้อมแก้ estimateReportHeight ให้เผื่อการตัดบรรทัดตามความยาวข้อความจริง
+
   Version 13 (v13) — แก้บั๊กกราฟไม่แบ่งครึ่งซ้าย-ขวา
   ---------------------------------------------------------------
   [บั๊ก] กราฟบนแดชบอร์ดเรียงลงมาเต็มความกว้างทีละใบ แทนที่จะแบ่งครึ่งซ้าย-ขวา
@@ -368,7 +402,7 @@ body::before{
 .kpi-card.kpi-alert{ animation: kpiPopIn .5s cubic-bezier(.22,1,.36,1) backwards, kpiPulse 2.2s ease-in-out infinite 1s; }
 @keyframes kpiPopIn{ from{ opacity:0; transform:translateY(14px) scale(.96);} to{ opacity:1; transform:translateY(0) scale(1);} }
 @keyframes kpiPulse{ 0%,100%{ box-shadow:0 14px 30px -12px rgba(0,0,0,.35), 0 0 0 0 rgba(239,68,68,.45);} 50%{ box-shadow:0 14px 30px -12px rgba(0,0,0,.35), 0 0 0 10px rgba(239,68,68,0);} }
-.kpi-num{ font-size:31px; font-weight:800; line-height:1.05; letter-spacing:-.5px; }
+.kpi-num{ font-size:31px; font-weight:800; line-height:1.4; letter-spacing:-.5px; }
 /* การ์ดที่พื้นเป็นสีทอง/อำพัน ต้องใช้ตัวอักษรสีเข้ม — ตัวขาวบนพื้นทองมีค่า contrast
    ราว 2:1 ซึ่งต่ำกว่าเกณฑ์ WCAG มาก อ่านไม่ออกเลยเมื่อดูกลางแดดผ่านจอมือถือ */
 .kpi-card.kpi-gold{ color:#17120A; }
@@ -480,6 +514,9 @@ table.dataTable tbody td{ border-color:var(--border) !important; }
 .report-page-land{
   width:1123px; min-height:794px; background:#fff; color:#17150F; font-family:'Prompt',sans-serif;
   box-sizing:border-box; padding:26px 30px 48px; position:relative;
+  /* ค่าตั้งต้นของทั้งหน้า — เผื่อความสูงให้สระบน/ล่างของภาษาไทยเสมอ
+     บล็อกใดที่ต้องการแน่นกว่านี้ให้ระบุเอง แต่ห้ามต่ำกว่า 1.35 */
+  line-height:1.55;
 }
 .report-page-land::before{
   content:''; position:absolute; left:0; top:0; bottom:0; width:7px;
@@ -492,6 +529,60 @@ table.dataTable tbody td{ border-color:var(--border) !important; }
    ซ้าย  (ตัวเลขหลัก + สัดส่วน + โซน) ให้กว้างพอใส่การ์ด KPI 2x2
    กลาง  (หัวข้อที่ตกบ่อย) กว้างที่สุดเพราะมีแถบสัดส่วน
    ขวา   (ร้านที่ต้องติดตาม) เป็นรายการที่ยาวที่สุด */
+/* กล่องสรุปเชิงบริหารเมื่อวางท้ายหน้า — ดันลงชิดล่างด้วย margin-top:auto
+   เพื่อไม่ให้ลอยค้างกลางหน้าเมื่อเนื้อหาด้านบนสั้นกว่าปกติ (เช่น รอบที่มีโซนน้อย) */
+.rpt-exec-bottom{ margin-top:14px; margin-bottom:0; border-left-color:#C9971B; }
+.rpt-exec-bottom .report-exec-text{ font-weight:500; line-height:1.75; }
+
+/* หน้า 1 ของรายงานสรุป: 2 คอลัมน์ (เดิม 3 คอลัมน์ทำให้ตารางแคบจนข้อความตัดบรรทัด
+   แล้วแถวสูงขึ้น 2-3 เท่า จนเนื้อหาล้นกรอบ A4 ไป 39%) */
+/* สัดส่วน 2 คอลัมน์: ซ้าย 420px พอดีกับการ์ด KPI 2 ใบเรียงคู่ (194px x 2 + gap)
+   ขวารับตารางหัวข้อตรวจซึ่งต้องการความกว้างมากกว่า */
+.rpt-land-2col{ display:grid; grid-template-columns:420px 1fr; gap:18px; align-items:start; }
+.rpt-land-2col .rpt-land-col{ gap:13px; }
+.rpt-land-2col .rpt-kpi-grid{ grid-template-columns:repeat(2,1fr); margin-bottom:0; }
+.rpt-land-2col .rpt-table{ font-size:11.5px; }
+.rpt-land-2col .rpt-td{ padding:6px 9px; }
+.rpt-land-2col .rpt-th{ padding:6px 9px; font-size:11px; }
+.rpt-land-2col .report-section-title{ margin-bottom:7px; font-size:12.5px; }
+.rpt-land-2col .rpt-kpi{ padding:9px 12px; min-height:72px; }
+.rpt-land-2col .rpt-kpi-value{ font-size:21px; }
+.rpt-land-2col .rpt-criteria{ margin-bottom:0; margin-top:10px; padding:9px 13px; }
+.rpt-land-2col .rpt-stackbar{ height:19px; }
+.rpt-land-2col .rpt-legend{ gap:14px; font-size:10.5px; line-height:1.6; }
+/* หัวข้อย่อยและตารางในรายงานต้องเผื่อความสูงให้สระไทยเช่นกัน */
+.rpt-land-2col .report-section-title{ line-height:1.5; }
+.rpt-land-2col .rpt-td, .rpt-land-2col .rpt-th{ line-height:1.5; }
+.rpt-land-2col .rpt-minibar{ width:68px; }
+
+/* หน้า 2: ตารางร้านค้าเต็มความกว้าง — คอลัมน์กว้างพอให้ทุกช่องอยู่บรรทัดเดียว */
+.rpt-table-wide{ font-size:11.5px; }
+.rpt-table-wide .rpt-td{ padding:7px 9px; }
+.rpt-table-wide .rpt-th{ padding:7px 9px; font-size:11px; }
+/* ชื่อร้านที่ยาวผิดปกติ (เกิน ~22 อักษร) จะถูกตัดท้ายด้วย … แทนที่จะดันคอลัมน์อื่นให้เพี้ยน
+   ตารางถูกล็อกความกว้างด้วย table-layout:fixed เพื่อให้ความกว้างที่กำหนดในหัวตารางมีผลจริง
+   ไม่ถูกเบราว์เซอร์คำนวณใหม่ตามเนื้อหา ซึ่งจะทำให้ layout ที่คำนวณไว้ล่มทั้งตาราง */
+.rpt-table-wide{ table-layout:fixed; }
+.rpt-table-wide .rpt-td.rpt-nowrap{ overflow:hidden; text-overflow:ellipsis; }
+/* แถวสลับสีอ่อนช่วยกวาดตาตามแถวยาว 9 คอลัมน์ได้โดยไม่หลงบรรทัด */
+.rpt-table-wide tbody tr:nth-child(even) .rpt-td{ background:#FDFAF3; }
+
+/* คำอธิบายเลขข้อใต้ตาราง — แทนการเขียนชื่อหัวข้อเต็มซ้ำในทุกแถว
+   ประหยัดความกว้างไป ~337px ต่อแถว และทำให้แถวสูงคงที่ 31px */
+.rpt-item-legend{
+  margin-top:9px; padding:7px 12px; border-radius:9px;
+  background:#FDFAF3; border:1px solid #EADFC4;
+  font-size:10.2px; line-height:1.6; color:#4A4030;
+  display:flex; flex-wrap:wrap; gap:4px 16px; align-items:baseline;
+}
+.rpt-item-legend > b{ color:#8A7B5E; }
+.rpt-item-legend span b{ color:#C2410C; }
+
+/* ช่องลงนามของรายงานแนวนอน — วางเรียงข้างกันได้ เพราะหน้า 2 มีความกว้างเต็ม */
+.rpt-sign-row-land{ display:flex; gap:120px; justify-content:flex-end; margin-top:26px; }
+.rpt-sign-row-land .report-sign-box{ flex:0 0 300px; text-align:center; }
+.rpt-sign-row-land .report-sign-line{ border-bottom:1px solid #9A8B6C; margin:30px 16px 6px; }
+
 .rpt-land-grid{ display:grid; grid-template-columns:300px 1fr 1fr; gap:14px; align-items:start; }
 .rpt-land-col{ display:flex; flex-direction:column; gap:10px; min-width:0; }
 .rpt-land-grid .rpt-kpi-grid{ grid-template-columns:repeat(2,1fr); margin-bottom:0; }
@@ -632,7 +723,10 @@ table.dataTable tbody td{ border-color:var(--border) !important; }
 .period-go{ min-height:40px !important; padding:0 15px !important; font-size:13px !important; white-space:nowrap; }
 .period-xls{ min-height:40px !important; padding:0 12px !important; font-size:15px !important; }
 .period-more{ position:relative; }
-.period-more-btn{ min-height:40px !important; padding:0 11px !important; font-size:16px !important; line-height:1; }
+.period-more-btn{ min-height:40px !important; padding:0 11px !important; font-size:16px !important;
+  /* ปุ่มนี้แสดงสัญลักษณ์ "⋯" อย่างเดียว ไม่มีข้อความไทย จึงใช้ flex จัดกึ่งกลาง
+     แทนการพึ่ง line-height แน่นๆ ซึ่งชัดเจนกว่าและไม่ชนกฎความสูงบรรทัดของภาษาไทย */
+  display:inline-flex; align-items:center; justify-content:center; }
 
 /* เมนู "ตัวเลือกเพิ่มเติม" — เก็บปุ่มที่ใช้ไม่บ่อย (รายงานภาพรวมทั้งหมด / Excel ทั้งหมด)
    ไว้ในเมนู แทนที่จะวางเรียงจนแถบหัวยาวเกินและเบียดชื่อหน้า */
@@ -686,14 +780,28 @@ table.dataTable tbody td{ border-color:var(--border) !important; }
 
 /* ---------- รายงานสรุปตามรอบเวลา v10 ---------- */
 .rpt-kpi-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:9px; margin-bottom:13px; }
-.rpt-kpi{ border:1px solid #EADFC4; border-radius:11px; background:#FDFAF3; padding:9px 11px; }
-.rpt-kpi-label{ font-size:10px; color:#7A6C50; font-weight:600; margin-bottom:3px; }
-.rpt-kpi-value{ font-size:23px; font-weight:800; line-height:1.05; }
-.rpt-kpi-unit{ font-size:10.5px; font-weight:600; color:#8A7B5E; margin-left:3px; }
+/* การ์ดตัวเลขหลักในรายงาน
+   ⚠️ line-height ของข้อความไทยต้องไม่ต่ำกว่า 1.4
+   ภาษาไทยวางสระบนและวรรณยุกต์ซ้อนกันได้สองชั้น (เช่น "ครั้ง" = ั + ้)
+   ถ้าตั้ง line-height แน่นแบบตัวเลขอารบิก (1.0-1.1) ส่วนที่อยู่เหนือตัวอักษรจะล้นออกนอก
+   กล่องบรรทัดไปทับข้อความบรรทัดบน — เป็นบั๊กที่เคยเกิดใน v14 ที่ตั้งไว้ 1.05
+   ใช้ flex + gap แทน margin เพราะควบคุมระยะห่างได้แน่นอนกว่าเมื่อบางบล็อกไม่ถูกแสดง */
+.rpt-kpi{
+  border:1px solid #EADFC4; border-radius:11px; background:#FDFAF3;
+  padding:9px 12px; display:flex; flex-direction:column; gap:3px;
+  justify-content:center; min-height:72px;
+}
+.rpt-kpi-label{ font-size:10px; color:#7A6C50; font-weight:600; line-height:1.5; }
+/* flex-wrap ให้ป้ายเทียบรอบตกลงบรรทัดใหม่เองถ้าการ์ดแคบเกินไป
+   ดีกว่าปล่อยให้ล้นออกนอกขอบการ์ดโดยที่ผู้ใช้ไม่รู้ */
+.rpt-kpi-value{ font-size:21px; font-weight:800; line-height:1.45;
+  display:flex; align-items:baseline; gap:5px; flex-wrap:wrap; }
+.rpt-kpi-unit{ font-size:10.5px; font-weight:600; color:#8A7B5E; }
 
 /* ป้ายส่วนต่างเทียบรอบก่อน — สีบอกว่า "ดีขึ้นหรือแย่ลง" ไม่ใช่ "เพิ่มหรือลด"
    เพราะข้อบกพร่องที่เพิ่มขึ้นคือเรื่องแย่ ส่วนคะแนนที่เพิ่มขึ้นคือเรื่องดี */
-.rpt-delta{ display:inline-block; margin-top:4px; font-size:10px; font-weight:700; padding:1px 7px; border-radius:999px; }
+.rpt-delta{ display:inline-block; align-self:flex-start; font-size:10px; font-weight:700;
+  line-height:1.6; padding:1px 8px; border-radius:999px; }
 .rpt-delta.is-good{ background:rgba(16,185,129,.15); color:#0E7A56; }
 .rpt-delta.is-bad{ background:rgba(239,68,68,.14); color:#B91C1C; }
 .rpt-delta.is-flat{ background:#F0E9DA; color:#8A7B5E; }
@@ -814,7 +922,7 @@ table.dataTable tbody td{ border-color:var(--border) !important; }
 }
 .splash-sub{ color:rgba(255,255,255,.78); font-size:15px; margin-top:8px; text-align:center; padding:0 24px; animation: fadeSlide .8s ease .3s backwards; }
 .splash-clock{ margin-top:26px; text-align:center; animation: fadeSlide .8s ease .45s backwards; }
-.splash-clock-time{ font-size:42px; font-weight:700; letter-spacing:2px; line-height:1.1; }
+.splash-clock-time{ font-size:42px; font-weight:700; letter-spacing:2px; line-height:1.35; }
 .splash-clock-date{ font-size:14px; color:rgba(255,255,255,.7); margin-top:2px; }
 .splash-hint{
   margin-top:44px; display:flex; align-items:center; gap:10px;
@@ -5234,6 +5342,16 @@ function buildFollowUpTable(record){
    ไปราว 260px — ไฟล์ PDF ยังอ่านได้ แต่พอสั่งพิมพ์ลงกระดาษจริงจะถูกตัดครึ่งกลางเอกสาร */
 const A4_CONTENT_HEIGHT = 1123;
 
+/* ประเมินจำนวนบรรทัดที่ข้อความจะกินในคอลัมน์กว้าง widthPx
+   ค่าประเมินเดิมคิดว่าทุกแถวสูงเท่ากันหมด ซึ่งผิด — ชื่อร้านยาวๆ ในคอลัมน์แคบ
+   จะตัดเป็น 2-3 บรรทัด ทำให้แถวสูงกว่าที่คิด 2-3 เท่า และเนื้อหาล้นหน้ากระดาษ
+   ตัวเลข 7.4 คือความกว้างเฉลี่ยต่ออักษรไทยที่ font-size 11.5px (วัดจากฟอนต์ Prompt) */
+function estimateLines(text, widthPx){
+  const chars = String(text || '').length;
+  if (!chars) return 1;
+  return Math.max(1, Math.ceil(chars * 7.4 / Math.max(widthPx - 18, 20)));
+}
+
 function estimateReportHeight(record){
   const photos = (record.photos || []).filter(Boolean).length;
   const photoRows = photos ? Math.ceil(Math.min(photos, 8) / 4) : 0;
@@ -5387,7 +5505,7 @@ function renderInspectionReportContent(record, tenant){
         <div style="background:#fff;border-radius:10px;padding:5px 7px;flex-shrink:0;display:flex;align-items:center;"><img src="${SEACON_LOGO_DATA_URL}" style="height:26px;width:auto;display:block;"></div>
         <div class="report-logo">${MALLGUARD_MARK_SVG}</div>
         <div style="min-width:0;">
-          <div style="font-size:17px;font-weight:800;line-height:1.25;">ใบรายงานผลการตรวจประเมินร้านค้า</div>
+          <div style="font-size:17px;font-weight:800;line-height:1.4;">ใบรายงานผลการตรวจประเมินร้านค้า</div>
           <div style="font-size:11px;opacity:.9;">MallGuard · ระบบตรวจประเมินความปลอดภัยและมาตรฐานร้านค้า</div>
         </div>
       </div>
@@ -5435,7 +5553,7 @@ function renderInspectionReportContent(record, tenant){
       <div style="display:flex;align-items:center;gap:11px;min-width:0;">
         <div class="report-logo">${MALLGUARD_MARK_SVG}</div>
         <div style="min-width:0;">
-          <div style="font-size:14px;font-weight:800;line-height:1.3;">เอกสารแนบ — หลักฐานและการติดตามผล</div>
+          <div style="font-size:14px;font-weight:800;line-height:1.4;">เอกสารแนบ — หลักฐานและการติดตามผล</div>
           <div style="font-size:10.5px;opacity:.9;">${escapeHtml(tenant.name || record.storeId)} · เลขที่ ${escapeHtml(record.id)}</div>
         </div>
       </div>
@@ -5490,7 +5608,7 @@ function renderWarningNoticeContent(record, tenant){
       <div style="display:flex;align-items:center;gap:12px;min-width:0;">
         <div style="background:#fff;border-radius:10px;padding:5px 7px;flex-shrink:0;display:flex;align-items:center;"><img src="${SEACON_LOGO_DATA_URL}" style="height:24px;width:auto;display:block;"></div>
         <div style="min-width:0;">
-          <div style="font-size:18px;font-weight:800;line-height:1.3;">${bannerLabel}</div>
+          <div style="font-size:18px;font-weight:800;line-height:1.4;">${bannerLabel}</div>
           <div style="font-size:11px;opacity:.9;margin-top:4px;">MallGuard · แจ้งไปยังผู้เช่าเพื่อดำเนินการแก้ไขตามกำหนดเวลา</div>
         </div>
       </div>
@@ -5675,11 +5793,16 @@ function renderPeriodicReportContent(st){
     { label:'ข้อบกพร่องขั้นวิกฤต', value:numFmt(st.counts.major), unit:'กรณี',
       delta: cmp.hasPrevData ? deltaChip(cmp.majorCount, '', false) : '', color:'#C2410C' },
   ];
+  /* ป้ายเทียบรอบก่อนวางไว้แถวเดียวกับตัวเลข ไม่ใช่บรรทัดใหม่
+     อ่านต่อเนื่องเป็นประโยคเดียว "65 /100 ▲ +5" และประหยัดความสูงการ์ดไป 20px
+     ซึ่งจำเป็นเพราะหน้า 1 ต้องมีที่ให้สรุปเชิงบริหารที่ย้ายลงมาไว้ท้ายหน้า */
   const kpiHtml = kpis.map(k=>`
     <div class="rpt-kpi">
       <div class="rpt-kpi-label">${k.label}</div>
-      <div class="rpt-kpi-value" style="color:${k.color};">${k.value}<span class="rpt-kpi-unit">${k.unit}</span></div>
-      ${k.delta || '<span class="rpt-delta is-flat">ไม่มีข้อมูลรอบก่อน</span>'}
+      <div class="rpt-kpi-value" style="color:${k.color};">
+        ${k.value}<span class="rpt-kpi-unit">${k.unit}</span>
+        ${k.delta || '<span class="rpt-delta is-flat">ไม่มีรอบก่อน</span>'}
+      </div>
     </div>`).join('');
 
   // ---- สัดส่วนผลตรวจแบบแถบเดียว อ่านง่ายกว่าวงกลมเมื่อพิมพ์ขาวดำ และกินพื้นที่น้อยกว่ามาก ----
@@ -5692,12 +5815,13 @@ function renderPeriodicReportContent(st){
       ${seg(st.counts.major, '#EF4444', 'ไม่ผ่านขั้นวิกฤต')}
     </div>
     <div class="rpt-legend">
-      <span><i style="background:#10B981;"></i>ผ่าน ${numFmt(st.counts.compliant)}</span>
-      <span><i style="background:#F59E0B;"></i>เล็กน้อย ${numFmt(st.counts.minor)}</span>
-      <span><i style="background:#EF4444;"></i>วิกฤต ${numFmt(st.counts.major)}</span>
+      <span><i style="background:#10B981;"></i>ผ่านมาตรฐาน ${numFmt(st.counts.compliant)} ครั้ง</span>
+      <span><i style="background:#F59E0B;"></i>ข้อแก้ไขเล็กน้อย ${numFmt(st.counts.minor)} ครั้ง</span>
+      <span><i style="background:#EF4444;"></i>ไม่ผ่านขั้นวิกฤต ${numFmt(st.counts.major)} ครั้ง</span>
     </div>`;
 
-  // ---- อันดับหัวข้อที่ตกบ่อยที่สุด (ใช้วางแผนอบรมผู้เช่าให้ตรงจุด) ----
+  /* ---- อันดับหัวข้อที่ตกบ่อยที่สุด (ใช้วางแผนอบรมผู้เช่าให้ตรงจุด) ----
+     หน้า 1 มี 2 คอลัมน์ จึงมีที่ให้ชื่อหัวข้ออยู่บรรทัดเดียว ไม่ต้องบีบเหมือนเดิมที่แบ่ง 3 คอลัมน์ */
   const itemRows = st.itemStats.map(x=>{
     const pct = x.failRate;
     const barColor = pct >= 40 ? '#EF4444' : pct >= 15 ? '#F59E0B' : '#10B981';
@@ -5724,139 +5848,177 @@ function renderPeriodicReportContent(st){
     </tr>`).join('')
     : `<tr><td class="rpt-td rpt-center" colspan="4"><span class="rpt-dim">ยังไม่มีข้อมูลในรอบนี้</span></td></tr>`;
 
-  /* ---- ร้านค้าที่ต้องติดตาม ----
-     แนวนอนมีพื้นที่แนวตั้งน้อยกว่า (794px เทียบกับ 1123px) แต่มี 3 คอลัมน์ให้กระจาย
-     คอลัมน์ขวาจึงใส่ได้ราว 14 แถวก่อนล้น — เกินกว่านั้นให้ชี้ไปที่ไฟล์ Excel */
-  const MAX_WATCH = 14;
+  /* ---- ร้านค้าที่ต้องติดตาม (อยู่หน้า 2 เต็มความกว้าง) ----
+     ได้ความกว้างเต็ม 1063px แทนที่จะเป็น ~350px เหมือนตอนแบ่ง 3 คอลัมน์
+     คอลัมน์จึงกว้างพอให้ชื่อร้านและสถานะอยู่บรรทัดเดียว ไม่ตัดคำจนแถวสูง 3 บรรทัด */
+  /* 14 คือเพดานจริงของหน้ากระดาษ (คำนวณจากความสูงจริงของแต่ละส่วน):
+     แถวละ 31px x 14 = 434px  +  หัวกระดาษ 88 + หัวข้อตาราง 54
+                              +  ช่องลงนาม 90 + ท้ายกระดาษ 32 + ขอบบน-ล่าง 74
+     แถวละ 31px x 13 = 403px  +  หัวกระดาษ 88 + หัวข้อตาราง 54 + คำอธิบายเลขข้อ 26
+                              +  ช่องลงนาม 90 + ท้ายกระดาษ 32 + ขอบบน-ล่าง 74
+     = 767px จากพื้นที่ A4 แนวนอน 794px  (เหลือระยะกันชน 27px)
+     เกินกว่านี้ให้ชี้ไปที่ไฟล์ Excel แทน ดีกว่าปล่อยให้ล้นแล้วถูกตัดตอนพิมพ์ */
+  const MAX_WATCH = 13;
   const watchShown = st.watchList.slice(0, MAX_WATCH);
   const watchRows = watchShown.length ? watchShown.map((h,i)=>{
     const t = findTenant(h.storeId) || {};
     const g = gradeMeta(h.grade);
-    const defects = getDefectItems(h.checks).map(d=> d.item.no).join(', ') || '—';
+    /* ใช้ "เลขข้อ" แทนการเขียนชื่อหัวข้อเต็มลงในตาราง
+       เพราะชื่อเต็มอย่าง "การจัดเก็บน้ำมันเก่าที่ใช้งานแล้ว · แมลงสาบ" ต้องใช้ความกว้าง 337px
+       ซึ่งจะเบียดคอลัมน์อื่นจนข้อความตัดบรรทัดแล้วแถวสูงขึ้นเท่าตัว
+       จึงใส่คำอธิบายเลขข้อไว้ใต้ตารางครั้งเดียว ผู้อ่านดูเทียบได้โดยไม่เปลืองพื้นที่ทุกแถว */
+    const defectNos = getDefectItems(h.checks).map(dd=> dd.item.no).join(', ') || '—';
     return `<tr>
       <td class="rpt-td rpt-no">${i+1}</td>
-      <td class="rpt-td"><b>${escapeHtml(t.name || h.storeId)}</b>${h.__repeat ? '<span class="rpt-repeat">ตกซ้ำ</span>' : ''}
-        <span class="rpt-dim" style="font-size:9.5px;"> · ${escapeHtml(t.zone || '-')}</span></td>
+      <td class="rpt-td rpt-nowrap"><b>${escapeHtml(t.name || h.storeId)}</b>${h.__repeat ? '<span class="rpt-repeat">ตกซ้ำ</span>' : ''}</td>
+      <td class="rpt-td rpt-nowrap"><span class="rpt-dim">${escapeHtml(h.storeId)}</span></td>
+      <td class="rpt-td rpt-nowrap">${escapeHtml(t.zone || '-')}</td>
       <td class="rpt-td rpt-center rpt-nowrap">${toBuddhistDateStr(parseBEDateStr(h.date))}</td>
-      <td class="rpt-td rpt-center"><span style="color:${g.color};font-weight:800;">${g.label}</span></td>
-      <td class="rpt-td rpt-center"><b>${h.score}</b></td>
-      <td class="rpt-td rpt-center">${escapeHtml(defects)}</td>
+      <td class="rpt-td rpt-center rpt-nowrap"><span style="color:${g.color};font-weight:800;">${g.label}</span></td>
+      <td class="rpt-td rpt-center"><b style="color:${g.color};">${h.score}</b></td>
+      <td class="rpt-td rpt-center rpt-nowrap">${escapeHtml(defectNos)}</td>
     </tr>`;
   }).join('')
-    : `<tr><td class="rpt-td rpt-center" colspan="6"><span style="color:#0E9F6E;font-weight:700;">ไม่มีร้านค้าที่ต้องติดตามในรอบนี้ ✓</span></td></tr>`;
+    : `<tr><td class="rpt-td rpt-center" colspan="8"><span style="color:#0E9F6E;font-weight:700;">ไม่มีร้านค้าที่ต้องติดตามในรอบนี้ ✓</span></td></tr>`;
 
   const watchMore = st.watchList.length > MAX_WATCH
-    ? `<div class="rpt-more">และอีก ${numFmt(st.watchList.length - MAX_WATCH)} ร้าน — ดูรายการทั้งหมดได้จากไฟล์ Excel</div>` : '';
+    ? `<div class="rpt-more">และอีก ${numFmt(st.watchList.length - MAX_WATCH)} ร้าน — ดูรายการทั้งหมดได้จากไฟล์ Excel (ชีต "รายละเอียดรายร้าน")</div>` : '';
 
-  return `
-  <div class="report-page-land">
+  const headerBlock = (subtitle)=>`
     <div class="report-header">
       <div style="display:flex;align-items:center;gap:12px;min-width:0;">
         <div style="background:#fff;border-radius:10px;padding:5px 7px;flex-shrink:0;display:flex;align-items:center;"><img src="${SEACON_LOGO_DATA_URL}" style="height:26px;width:auto;display:block;"></div>
         <div class="report-logo">${MALLGUARD_MARK_SVG}</div>
         <div style="min-width:0;">
-          <div style="font-size:16px;font-weight:800;line-height:1.25;">รายงานสรุปผลการตรวจประเมินร้านค้า ${typeName}</div>
-          <div style="font-size:11px;opacity:.9;">${escapeHtml(st.period.label)} · แผนกรักษาความปลอดภัย</div>
+          <div style="font-size:16px;font-weight:800;line-height:1.4;">รายงานสรุปผลการตรวจประเมินร้านค้า ${typeName}</div>
+          <div style="font-size:11px;opacity:.9;">${escapeHtml(subtitle)}</div>
         </div>
       </div>
       <div style="text-align:right;font-size:10.5px;opacity:.95;flex-shrink:0;">
         ออกรายงาน<br><b>${toBuddhistDateStr(new Date())}</b>
       </div>
     </div>
-    <div class="report-gold-rule"></div>
+    <div class="report-gold-rule"></div>`;
 
-    <div class="report-exec-summary" style="border-left-color:#C9971B;">
-      <div class="report-exec-label">สรุปเชิงบริหาร</div>
-      <div class="report-exec-text" style="font-weight:500;">${escapeHtml(buildPeriodNarrative(st, cmp))}</div>
+  const signBlock = `
+    <div class="rpt-sign-row-land">
+      <div class="report-sign-box"><div class="report-sign-line"></div>
+        <div class="report-sign-role">ผู้จัดทำรายงาน</div>
+        <div class="report-sign-name">แผนกรักษาความปลอดภัย</div></div>
+      <div class="report-sign-box"><div class="report-sign-line"></div>
+        <div class="report-sign-role">ผู้ตรวจสอบ / อนุมัติ</div>
+        <div class="report-sign-name">&nbsp;</div></div>
+    </div>`;
+
+  return `
+  <div class="report-page-land">
+    ${headerBlock(st.period.label + ' · แผนกรักษาความปลอดภัย')}
+    <div class="rpt-doc-band">
+      <span>ประเภทเอกสาร: <b>รายงานสรุป${typeName}</b></span>
+      <span>หน่วยงาน: <b>แผนกรักษาความปลอดภัย</b></span>
+      <span>ชั้นความลับ: <b>ใช้ภายในองค์กร</b></span>
     </div>
+
     ${st.badDateCount ? `<div class="rpt-warn-note">⚠️ พบผลการตรวจ ${numFmt(st.badDateCount)} รายการที่ข้อมูลวันที่ไม่สมบูรณ์ จึงไม่ถูกนับรวมในรอบเวลาใด กรุณาตรวจสอบและแก้ไขวันที่ในหน้าประวัติการตรวจ</div>` : ''}
 
-    <div class="rpt-land-grid">
-      <!-- คอลัมน์ซ้าย: ตัวเลขหลัก + สัดส่วน + โซน -->
+    <!-- หน้า 1 แบ่ง 2 คอลัมน์ ไม่ใช่ 3 — ให้ตารางมีที่หายใจพอที่ข้อความไม่ตัดบรรทัด -->
+    <div class="rpt-land-2col">
       <div class="rpt-land-col">
         <div class="rpt-kpi-grid">${kpiHtml}</div>
 
         <div>
           <div class="report-section-title">📊 สัดส่วนผลการตรวจ
-            <span class="report-section-count">${numFmt(st.inspectionCount)} ครั้ง</span>
+            <span class="report-section-count">รวม ${numFmt(st.inspectionCount)} ครั้ง</span>
           </div>
           ${barHtml}
         </div>
 
         <div>
-          <div class="report-section-title">🏢 ผลแยกตามโซน
-            <span class="report-section-count">คะแนนต่ำสุดก่อน</span>
+          <div class="report-section-title">🏢 ผลการตรวจแยกตามโซน
+            <span class="report-section-count">เรียงจากคะแนนต่ำสุด</span>
           </div>
           <table class="rpt-table">
             <thead><tr>
               <th class="rpt-th">โซน</th>
-              <th class="rpt-th rpt-center" style="width:38px;">ตรวจ</th>
-              <th class="rpt-th rpt-center" style="width:46px;">เฉลี่ย</th>
-              <th class="rpt-th rpt-center" style="width:44px;">พบ</th>
+              <th class="rpt-th rpt-center" style="width:72px;">ตรวจ (ครั้ง)</th>
+              <th class="rpt-th rpt-center" style="width:74px;">คะแนนเฉลี่ย</th>
+              <th class="rpt-th rpt-center" style="width:70px;">พบปัญหา</th>
             </tr></thead>
             <tbody>${zoneRows}</tbody>
           </table>
         </div>
       </div>
 
-      <!-- คอลัมน์กลาง: หัวข้อที่ตรวจพบปัญหา -->
       <div class="rpt-land-col">
         <div class="report-section-title">🔍 หัวข้อที่ตรวจพบปัญหามากที่สุด
           <span class="report-section-count">เรียงจากมากไปน้อย</span>
         </div>
         <table class="rpt-table">
           <thead><tr>
-            <th class="rpt-th" style="width:26px;">ข้อ</th>
+            <th class="rpt-th" style="width:30px;">ข้อ</th>
             <th class="rpt-th">หัวข้อตรวจ</th>
-            <th class="rpt-th rpt-center" style="width:52px;">ประเมิน</th>
-            <th class="rpt-th rpt-center" style="width:52px;">พบปัญหา</th>
-            <th class="rpt-th rpt-center" style="width:46px;">จุดที่พบ</th>
-            <th class="rpt-th rpt-center" style="width:112px;">สัดส่วน</th>
+            <th class="rpt-th rpt-center" style="width:62px;">ประเมิน</th>
+            <th class="rpt-th rpt-center" style="width:62px;">พบปัญหา</th>
+            <th class="rpt-th rpt-center" style="width:62px;">จุดที่พบ</th>
+            <th class="rpt-th rpt-center" style="width:120px;">สัดส่วนที่พบปัญหา</th>
           </tr></thead>
           <tbody>${itemRows}</tbody>
         </table>
 
         <div class="rpt-criteria">
           <div class="rpt-criteria-title">เกณฑ์การประเมิน</div>
-          <div style="font-size:10.2px;line-height:1.55;color:#4A4030;">
-            <b>คะแนนรายข้อ</b> ผ่าน = 100 · เฝ้าระวัง = 60 · ไม่ผ่าน = 0 · คะแนนรวมคือค่าเฉลี่ยของข้อที่ประเมินครบแล้ว<br>
+          <div style="font-size:10.5px;line-height:1.6;color:#4A4030;">
+            <b>คะแนนรายข้อ</b> ผ่าน = 100 · เฝ้าระวัง = 60 · ไม่ผ่าน = 0<br>
+            คะแนนรวมคือค่าเฉลี่ยของข้อที่ประเมินครบแล้ว<br>
             <span style="color:#10B981;font-weight:700;">ผ่านมาตรฐาน</span> ผ่านครบทุกข้อ ·
             <span style="color:#F59E0B;font-weight:700;">ข้อแก้ไขเล็กน้อย</span> พบข้อบกพร่องที่ไม่กระทบความปลอดภัยโดยตรง ·
             <span style="color:#EF4444;font-weight:700;">ไม่ผ่านขั้นวิกฤต</span> พบข้อบกพร่องในข้อ ${CHECKLIST_ITEMS.filter(i=>i.severity==='major').map(i=>i.no).join(', ')}
           </div>
         </div>
       </div>
-
-      <!-- คอลัมน์ขวา: ร้านค้าที่ต้องติดตาม -->
-      <div class="rpt-land-col">
-        <div class="report-section-title">📌 ร้านค้าที่ต้องติดตามการแก้ไข
-          <span class="report-section-count">${numFmt(st.watchList.length)} ร้าน${st.repeatCount ? ` · ตกซ้ำ ${numFmt(st.repeatCount)}` : ''}</span>
-        </div>
-        <table class="rpt-table">
-          <thead><tr>
-            <th class="rpt-th" style="width:24px;">#</th>
-            <th class="rpt-th">ร้านค้า</th>
-            <th class="rpt-th rpt-center" style="width:76px;">วันที่ตรวจ</th>
-            <th class="rpt-th rpt-center" style="width:84px;">ผลการตรวจ</th>
-            <th class="rpt-th rpt-center" style="width:40px;">คะแนน</th>
-            <th class="rpt-th rpt-center" style="width:52px;">ข้อที่พบ</th>
-          </tr></thead>
-          <tbody>${watchRows}</tbody>
-        </table>
-        ${watchMore}
-
-        <div class="rpt-land-sign">
-          <div class="report-sign-box"><div class="report-sign-line"></div>
-            <div class="report-sign-role">ผู้จัดทำรายงาน</div>
-            <div class="report-sign-name">แผนกรักษาความปลอดภัย</div></div>
-          <div class="report-sign-box"><div class="report-sign-line"></div>
-            <div class="report-sign-role">ผู้ตรวจสอบ / อนุมัติ</div>
-            <div class="report-sign-name">&nbsp;</div></div>
-        </div>
-      </div>
     </div>
 
-    ${periodFooter(st, 1, 1)}
+    <!-- สรุปเชิงบริหารวางไว้ท้ายหน้า ตามลำดับการอ่านแบบรายงานการประชุมและงบการเงิน
+         คือให้ผู้อ่านเห็นตัวเลขและตารางก่อน แล้วจึงอ่านบทสรุปเป็นการปิดท้าย -->
+    <div class="report-exec-summary rpt-exec-bottom">
+      <div class="report-exec-label">สรุปเชิงบริหาร</div>
+      <div class="report-exec-text">${escapeHtml(buildPeriodNarrative(st, cmp))}</div>
+    </div>
+
+    ${periodFooter(st, 1, 2)}
+  </div>
+
+  <div class="report-page-land">
+    ${headerBlock(st.period.label + ' · เอกสารแนบ: รายชื่อร้านค้าที่ต้องติดตาม')}
+
+    <div class="report-section-title">📌 ร้านค้าที่ต้องติดตามการแก้ไข
+      <span class="report-section-count">${numFmt(st.watchList.length)} ร้าน${st.repeatCount ? ` · พบข้อบกพร่องซ้ำจากรอบก่อน ${numFmt(st.repeatCount)} ร้าน` : ''}</span>
+    </div>
+    <table class="rpt-table rpt-table-wide">
+      <!-- ความกว้างแต่ละคอลัมน์คำนวณจากข้อความจริงที่ยาวที่สุดที่เป็นไปได้
+           (เช่น "โซนลานกลาง หน้า Tops" = 166px, "13 พฤศจิกายน 2569" = 144px)
+           เพื่อให้ทุกช่องอยู่บรรทัดเดียว แถวจึงสูงคงที่ 31px และคาดการณ์จำนวนแถวต่อหน้าได้ -->
+      <thead><tr>
+        <th class="rpt-th" style="width:38px;">#</th>
+        <th class="rpt-th" style="width:202px;">ร้านค้า</th>
+        <th class="rpt-th" style="width:78px;">รหัสร้าน</th>
+        <th class="rpt-th" style="width:172px;">โซน</th>
+        <th class="rpt-th rpt-center" style="width:146px;">วันที่ตรวจ</th>
+        <th class="rpt-th rpt-center" style="width:142px;">ผลการตรวจ</th>
+        <th class="rpt-th rpt-center" style="width:58px;">คะแนน</th>
+        <th class="rpt-th rpt-center" style="width:140px;">ข้อที่พบ</th>
+      </tr></thead>
+      <tbody>${watchRows}</tbody>
+    </table>
+    ${watchMore}
+
+    <div class="rpt-item-legend">
+      <b>คำอธิบายเลขข้อ:</b>
+      ${CHECKLIST_ITEMS.map(it=> `<span><b>${it.no}</b> ${escapeHtml(it.name)}</span>`).join('')}
+    </div>
+
+    ${signBlock}
+    ${periodFooter(st, 2, 2)}
   </div>`;
 }
 
