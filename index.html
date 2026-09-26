@@ -1,6 +1,51 @@
 <!DOCTYPE html>
 <!-- ============================================================
   MallGuard — Tenant Safety & Standards Inspection System
+  Version 16 (v16) — ค้นหาร้านค้า + เข้าแอปอัตโนมัติ + ตรวจทาน Logic/Edge Cases รอบใหญ่
+  ---------------------------------------------------------------
+  [ฟีเจอร์ใหม่]
+  1. ช่องค้นหาร้านค้าในหน้า "ฟอร์มตรวจประเมินร้านค้า" (แทน dropdown ยาวเหยียด)
+     - ค้นได้จาก ชื่อร้าน / รหัสร้าน / โซน / ชั้น / ประเภทธุรกิจ พิมพ์หลายคำได้ (เช่น "อาหาร 3")
+     - ไม่สนตัวพิมพ์เล็ก-ใหญ่ ช่องว่าง ขีด จุด · รองรับเลขไทย ๐-๙ และสระอำพิมพ์แยก (ํ+า)
+     - เรียงผลตามความตรง: รหัสตรงเป๊ะ > รหัสขึ้นต้น > ชื่อขึ้นต้น > มีคำนี้อยู่
+     - ไฮไลต์คำที่ค้นเจอ · ใช้ลูกศร ↑↓ + Enter ได้ · ป้าย "ตรวจแล้ววันนี้" กันตรวจซ้ำ
+     - เปลี่ยนร้านขณะกรอกฟอร์มค้าง จะถามยืนยันก่อน (เดิมล้างฟอร์มทิ้งเงียบๆ)
+  2. หน้าโลโก้เข้าแอปอัตโนมัติ (Auto-Enter) หลังแสดง 3 วินาที พร้อมแถบนับถอยหลัง
+     แตะเพื่อข้ามได้ทันที · ส่วนหน้าพักจอจากการไม่ใช้งาน 1 นาทียังต้องแตะเข้า (ด้วยเหตุผลความปลอดภัย
+     ถ้าเข้าเองอัตโนมัติ การพักจอเพื่อซ่อนข้อมูลจะไม่มีความหมาย — เปลี่ยนได้ที่ SPLASH_AUTO_ENTER_ON_IDLE)
+
+  [บั๊ก/Edge Case ที่พบจากการตรวจทาน และแก้แล้ว]
+  3. นำเข้าไฟล์ร้านค้า: สถานะ "เปิด"/"เปิดดำเนินการ" ถูกแปลงเป็น Closed
+     เพราะ regex /ปิด/ ไปเจอคำว่า "ปิด" ที่อยู่ในคำว่า "เปิด" -> ร้านหายจากรายการตรวจทั้งหมด
+  4. นำเข้าไฟล์ร้านค้า: ส่งคำสั่ง importTenants ที่ Code.gs ไม่รู้จัก -> ร้านที่นำเข้าไม่เคยขึ้น Sheets
+     (เพิ่ม importTenants_ ใน Code.gs และระบบจะอัปโหลดร้านที่ค้างอยู่ในเครื่องให้อัตโนมัติ)
+  5. สถานะร้านจาก Sheets ที่พิมพ์ต่างรูป (active, " Active") ทำให้ร้านหายจากรายการเลือก
+  6. ลบผลตรวจ/ร้านค้าตอนเน็ตหลุด -> ซิงก์รอบถัดไปข้อมูลที่ลบ "ฟื้นกลับมา" (เพิ่มคิวรอส่ง + tombstone)
+  7. แก้ไขผลตรวจตอนออฟไลน์ -> ซิงก์รอบถัดไป ค่าเก่าจาก Sheets ทับค่าที่แก้ (ตอนนี้ของที่ยังไม่ส่งชนะเสมอ)
+  8. รายการที่ถูกลบจาก Sheets โดยเครื่องอื่น ค้างเป็น "ข้อมูลผี" ในเครื่องนี้ตลอดไป ทำให้สถิติเพี้ยน
+  9. ส่งข้อมูลค้างซ้อนกันหลายรอบพร้อมกัน (ปุ่ม + online event + หลังซิงก์) -> อัปโหลดรูปซ้ำใน Drive
+  10. รูปขึ้น Drive ไม่ครบ แต่ระบบลบ base64 ในเครื่องทิ้ง -> รูปหลักฐานหายถาวร
+  11. finalizeSubmit พังกลางทาง -> ปุ่มยืนยันค้าง + หน้าพักจอไม่ทำงานอีกเลยจนรีเฟรช
+  12. ร่างฟอร์มเมื่อพื้นที่เครื่องเต็ม บันทึก "ร่างฉบับเก่า" ทับ แทนคำตอบล่าสุด
+  13. กู้คืนร่างแล้วปุ่มประเภทการตรวจไม่ตรงกับค่าจริงที่จะบันทึก
+  14. ปิดกล้องก่อนกล้องพร้อม -> กล้องยังทำงานค้างเบื้องหลัง / แตะพื้นหลังปิดกล้อง -> หน้าพักจอหยุดทำงาน
+  15. เลือกรูปหลายไฟล์พร้อมกัน แนบเกิน 12 รูปได้ / รูปที่โหลดช้าไปโผล่ในฟอร์มของร้านถัดไป
+  16. ตรวจซ้ำวันเดียวกันเทียบวันที่แบบข้อความ -> รายการจาก Sheets ที่รูปแบบวันที่ต่างกันจับไม่ได้
+  17. KPI "ตรวจแล้วรอบนี้" นับจากประวัติตลอดกาล -> ความคืบหน้าค้าง 100% ตั้งแต่เดือนแรก
+      และนับร้านที่ปิดไปแล้ว/รหัสต่างตัวพิมพ์ซ้ำ ทำให้เกิน 100% ได้
+  18. แจ้งเตือน Major Defect ส่งซ้ำ 2 ครั้ง (หน้าเว็บ + Code.gs) และส่งซ้ำทุกครั้งที่ส่งข้อมูลซ้ำ
+  19. ดึงรูปจาก Drive ตอน export ไม่มี timeout (ค้างถาวร) และจำความล้มเหลวไว้ทั้ง session
+  20. แก้ไขร้านที่โซนไม่อยู่ใน 5 ตัวเลือก -> บันทึกแล้วโซนกลายเป็นค่าว่าง
+  21. ไลบรารีจาก CDN โหลดไม่สำเร็จ (เน็ตชั้นใต้ดิน) -> ทั้งแอปพังเพราะ Swal ไม่มี (เพิ่มตัวสำรอง)
+  22. Export CSV เปิดใน Excel แล้วข้อความขึ้นต้นด้วย = + @ ถูกรันเป็นสูตร / ชื่อไฟล์มีอักขระต้องห้าม
+  23. ตัวอย่างนำเข้าไฟล์แสดงข้อมูลโดยไม่ escape HTML และนับร้านซ้ำผิดเมื่อรหัสต่างตัวพิมพ์
+  24. ลบผลตรวจตอนออฟไลน์แล้วซิงก์ -> รายการฟื้นกลับมา (ตัวรวมข้อมูลวนจากรายการดิบ ไม่ใช่รายการที่ตัด tombstone แล้ว)
+  25. ร้านรหัสซ้ำ (A-101 / "a-101 ") เดิมแถวหลังชนะ -> รหัสเพี้ยนจากต้นฉบับ; ตอนนี้แถวแรกชนะ + เติมช่องว่างจากแถวซ้ำ
+  26. ค้นหา "a 101" (เว้นวรรค) ได้ร้านที่ชื่อมี 101 ขึ้นก่อนร้านรหัส A-101 -> เพิ่มการเทียบคำค้นรวมกับรหัส
+  27. ฉากหลังโมดัลเลื่อนลง 10px ตอนเปิด แตะขอบบนแล้วโดนเมนูหลังแทนการปิด -> ฉากหลังใช้ fade อย่างเดียว
+
+  ผลทดสอบอัตโนมัติ (Playwright, จำลอง Apps Script + ร้าน 300+ ร้าน): ผ่าน 50/50 ทั้งกรณีมี/ไม่มี SweetAlert2
+
   Version 15 (v15) — แก้ตัวอักษรทับซ้อน + จัดผังหน้า 1 ใหม่
   ---------------------------------------------------------------
   [บั๊ก] ตัวเลขกับตัวหนังสือในการ์ด KPI ของรายงานทับซ้อนกัน
@@ -451,8 +496,11 @@ html.dark .nav-item:hover{ background:rgba(232,183,56,.1); }
 .req-star{ color:#EF4444; font-weight:800; }
 
 /* Toast / Modal */
-.modal-backdrop{ position:fixed; inset:0; background:rgba(15,10,30,.55); backdrop-filter:blur(3px); z-index:60; display:flex; align-items:center; justify-content:center; padding:16px; animation:fadeSlide .2s ease;}
-.modal-box{ background:var(--surface); border-radius:22px; max-width:640px; width:100%; max-height:90vh; overflow-y:auto; box-shadow:0 30px 60px -20px rgba(0,0,0,.5); }
+.modal-backdrop{ position:fixed; inset:0; background:rgba(15,10,30,.55); backdrop-filter:blur(3px); z-index:60; display:flex; align-items:center; justify-content:center; padding:16px; animation:backdropFade .2s ease;}
+/* v16: ฉากหลังโมดัลใช้แค่ fade — เดิมใช้ fadeSlide (เลื่อนลง 10px) ทำให้ขอบบนของจอว่างช่วงแรก
+   แตะตรงนั้นแล้วโดนแถบเมนูด้านหลังแทนที่จะปิดโมดัล (ตัวกล่องด้านในยังเลื่อนขึ้นได้ตามเดิม) */
+@keyframes backdropFade{ from{ opacity:0; } to{ opacity:1; } }
+.modal-box{ animation:fadeSlide .2s ease; background:var(--surface); border-radius:22px; max-width:640px; width:100%; max-height:90vh; overflow-y:auto; box-shadow:0 30px 60px -20px rgba(0,0,0,.5); }
 
 .toast-wrap{ position:fixed; top:16px; right:16px; z-index:80; display:flex; flex-direction:column; gap:10px; }
 .toast{ min-width:260px; max-width:340px; border-radius:14px; padding:14px 16px; color:#fff; box-shadow:0 12px 26px -10px rgba(0,0,0,.4); animation:toastIn .25s ease; font-size:14px; font-weight:500;}
@@ -1214,13 +1262,63 @@ input:focus, select:focus, textarea:focus{ background:var(--bg-2); }
   body{ background:#fff !important; }
   .report-page{ box-shadow:none !important; margin:0 !important; }
 }
+
+/* ============================================================
+   v16: ช่องค้นหาร้านค้า (Store Picker)
+   เขียน CSS เองทั้งหมด ไม่ใช้ class Tailwind ใหม่ — ไฟล์นี้ใช้ Tailwind ที่คอมไพล์ล่วงหน้า
+   class ที่ไม่ได้ถูกคอมไพล์ไว้จะไม่มีผลเลย (บทเรียนจาก v13)
+   ============================================================ */
+.store-picker{ position:relative; scroll-margin-top:120px; }
+.store-picker-input-wrap{ position:relative; }
+.sp-icon{ position:absolute; left:14px; top:50%; transform:translateY(-50%); pointer-events:none; font-size:16px; opacity:.75; line-height:1; }
+#storeSearchInput{ padding-left:42px; padding-right:50px; font-weight:600; }
+#storeSearchInput.has-value{ border-color:var(--gold); background:var(--bg-2); }
+.sp-clear{ position:absolute; right:7px; top:50%; transform:translateY(-50%); width:36px; height:36px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:15px; font-weight:700; }
+.sp-clear:hover{ background:var(--surface-2); color:var(--text); }
+.sp-list{ position:absolute; left:0; right:0; top:calc(100% + 6px); z-index:45; background:var(--surface);
+  border:1.5px solid var(--border); border-radius:14px; box-shadow:var(--shadow);
+  max-height:min(380px, 56vh); overflow-y:auto; overscroll-behavior:contain; padding:6px; animation:fadeSlide .15s ease; }
+.sp-item{ display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; cursor:pointer; line-height:1.55; }
+.sp-item:hover, .sp-item.is-active{ background:var(--surface-2); }
+.sp-item.is-active{ box-shadow:inset 3px 0 0 var(--gold); }
+.sp-item.is-current .sp-name::after{ content:' ✓'; color:#10B981; }
+.sp-id{ flex-shrink:0; font-weight:700; font-size:12px; padding:3px 9px; border-radius:8px; max-width:38%;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  background:rgba(201,151,27,.15); color:var(--gold-text); font-variant-numeric:tabular-nums; }
+.sp-main{ min-width:0; flex:1 1 auto; }
+.sp-name{ font-weight:600; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sp-meta{ font-size:12px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sp-badge{ flex-shrink:0; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; white-space:nowrap;
+  background:rgba(16,185,129,.14); color:#10B981; }
+.sp-mark{ background:rgba(232,183,56,.38); color:inherit; border-radius:3px; padding:0 1px; }
+.sp-empty{ padding:16px 12px; font-size:13px; color:var(--text-muted); text-align:center; line-height:1.7; }
+.sp-note{ padding:8px 12px 4px; font-size:12px; color:var(--text-muted); text-align:center; border-top:1px dashed var(--border); margin-top:4px; line-height:1.6; }
+.sp-status{ margin-top:8px; font-size:12px; color:var(--text-muted); line-height:1.6; }
+@media (max-width:640px){
+  .sp-item{ padding:11px 10px; }
+  .sp-badge{ font-size:10px; padding:2px 6px; }
+}
+
+/* ============================================================
+   v16: หน้าโลโก้เข้าแอปอัตโนมัติ — แถบนับถอยหลัง
+   บอกผู้ใช้ว่า "กำลังจะเข้าเอง" ไม่ต้องแตะ และยังแตะเพื่อข้ามได้
+   (ไม่ปิดแอนิเมชันของแถบนี้ในโหมดลดการเคลื่อนไหว เพราะเป็นข้อมูล ไม่ใช่การตกแต่ง)
+   ============================================================ */
+.splash-progress{ width:min(280px, 70vw); height:6px; border-radius:999px; background:rgba(255,255,255,.14);
+  overflow:hidden; margin-top:16px; display:none; }
+.splash-progress-bar{ height:100%; width:0; border-radius:inherit; background:linear-gradient(90deg,#FFD24A,#FF8A3D); }
+#splashScreen.is-auto .splash-progress{ display:block; }
+#splashScreen.is-auto .splash-progress-bar{ animation:splashFill var(--splash-ms, 3000ms) linear forwards; }
+@keyframes splashFill{ from{ width:0; } to{ width:100%; } }
 </style>
 </head>
 <body class="min-h-screen">
 
 <!-- ===================== SPLASH / IDLE SCREEN ===================== -->
-<!-- แสดงตอนเปิดแอป และกลับมาแสดงอัตโนมัติเมื่อไม่มีการใช้งานเกิน 1 นาที -->
-<div id="splashScreen" onclick="enterApp()">
+<!-- แสดงตอนเปิดแอป (เข้าแอปเองอัตโนมัติใน 3 วินาที — v16) และกลับมาแสดงเมื่อไม่มีการใช้งานเกิน 1 นาที
+     (กรณีพักจอต้องแตะเพื่อเข้า เพื่อไม่ให้ข้อมูลภายในเด้งกลับขึ้นจอเองให้คนเดินผ่านเห็น) -->
+<div id="splashScreen" onclick="enterApp()" role="button" tabindex="0" aria-label="เข้าสู่ระบบ MallGuard">
   <div id="splashParticles"></div>
   <div class="splash-logo-wrap">
     <div class="splash-ring splash-ring-1"></div>
@@ -1240,7 +1338,8 @@ input:focus, select:focus, textarea:focus{ background:var(--bg-2); }
     <div class="splash-clock-time" id="splashClockTime">--:--</div>
     <div class="splash-clock-date" id="splashClockDate"></div>
   </div>
-  <div class="splash-hint">👆 แตะที่หน้าจอเพื่อเริ่มใช้งาน</div>
+  <div class="splash-hint" id="splashHint">👆 แตะที่หน้าจอเพื่อเริ่มใช้งาน</div>
+  <div class="splash-progress" aria-hidden="true"><div class="splash-progress-bar"></div></div>
   <div class="splash-footer">เพื่อความปลอดภัยของข้อมูล ระบบจะกลับสู่หน้านี้อัตโนมัติเมื่อไม่มีการใช้งานเกิน 1 นาที</div>
 </div>
 
@@ -1418,7 +1517,7 @@ input:focus, select:focus, textarea:focus{ background:var(--bg-2); }
     <section id="page-inspect" class="page js-hidden space-y-5">
       <div>
         <h1 class="text-2xl font-extrabold">ฟอร์มตรวจประเมินร้านค้า</h1>
-        <p class="text-muted text-sm">สแกน QR หรือเลือกร้านค้า แล้วประเมินตามรายการตรวจสอบ</p>
+        <p class="text-muted text-sm">ค้นหาและเลือกร้านค้า แล้วประเมินตามรายการตรวจสอบ</p>
       </div>
 
       <!-- Step 0: ประเภทการตรวจ -->
@@ -1433,10 +1532,27 @@ input:focus, select:focus, textarea:focus{ background:var(--bg-2); }
 
       <!-- Step 1: เลือกร้าน -->
       <div class="surface rounded-2xl p-5">
-        <div class="flex items-center justify-between mb-3">
-          <label class="field-label !mb-0">เลือกร้านค้า</label>
+        <div class="flex items-center justify-between gap-2 flex-wrap mb-3">
+          <label class="field-label !mb-0" for="storeSearchInput">เลือกร้านค้า</label>
+          <span class="text-xs text-muted" id="storePickerCount"></span>
         </div>
-        <select id="storeSelect"></select>
+        <!-- v16: ช่องค้นหาร้านค้าแบบพิมพ์แล้วกรองทันที (combobox)
+             dropdown เดิมต้องเลื่อนหาทีละร้านจากหลักร้อยรายการบนจอมือถือ ซึ่งช้าและเลือกผิดง่าย
+             <select id="storeSelect"> ยังคงอยู่ (ซ่อนไว้) เป็นตัวเก็บค่าเดียวกับทุกฟังก์ชันเดิม
+             เพื่อไม่ให้โค้ดส่วนอื่นที่อ่าน/ตั้งค่า storeSelect ต้องเปลี่ยนตาม -->
+        <div class="store-picker" id="storePicker">
+          <div class="store-picker-input-wrap">
+            <span class="sp-icon" aria-hidden="true">🔍</span>
+            <input type="text" id="storeSearchInput" inputmode="search" enterkeyhint="search"
+                   autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                   placeholder="พิมพ์ชื่อร้าน / รหัสร้าน / โซน / ชั้น เพื่อค้นหา"
+                   role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="storeSearchList">
+            <button type="button" class="sp-clear js-hidden" id="storeSearchClear" title="ล้างการเลือกร้านค้า" aria-label="ล้างการเลือกร้านค้า">✕</button>
+          </div>
+          <div class="sp-list js-hidden" id="storeSearchList" role="listbox" aria-label="ผลการค้นหาร้านค้า"></div>
+        </div>
+        <div class="sp-status" id="storePickerStatus"></div>
+        <select id="storeSelect" class="js-hidden" aria-hidden="true" tabindex="-1"></select>
         <div id="storeInfoCard" class="js-hidden mt-4 surface-2 rounded-2xl p-4"></div>
       </div>
 
@@ -1734,6 +1850,63 @@ input:focus, select:focus, textarea:focus{ background:var(--bg-2); }
 
 <script>
 /* ================================================================
+   ===============  v16: ตรวจว่าไลบรารีจาก CDN โหลดครบไหม  =========
+   เจ้าหน้าที่เปิดแอปตามชั้นใต้ดิน/ลานจอดที่เน็ตอ่อน ไลบรารีบางตัวอาจโหลดไม่สำเร็จ
+   เดิมถ้า SweetAlert2 ไม่มา ทุกปุ่มที่เรียก Swal.fire() จะพัง (ReferenceError) ทั้งแอป
+   จึงจดสถานะไว้ก่อน แล้วติดตั้ง "ตัวสำรองขั้นต่ำ" ให้หน้าต่างถาม-ตอบยังใช้งานได้
+   (ตัวสำรองนี้ใช้ confirm/prompt ของเบราว์เซอร์ — หน้าตาไม่สวย แต่ดีกว่าแอปใช้ไม่ได้)
+   ================================================================ */
+const LIB_STATUS = {
+  swal:   typeof window.Swal !== 'undefined',
+  chart:  typeof window.Chart !== 'undefined',
+  sigpad: typeof window.SignaturePad !== 'undefined',
+  xlsx:   typeof window.XLSX !== 'undefined',
+  pdf:    typeof window.html2canvas !== 'undefined' && !!(window.jspdf && window.jspdf.jsPDF),
+};
+if (!LIB_STATUS.swal){
+  const plain = (html)=> String(html == null ? '' : html).replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
+  window.Swal = {
+    fire(opts){
+      const o = (opts && typeof opts === 'object') ? opts : { title: String(opts || '') };
+      const text = [plain(o.title), plain(o.html || o.text)].filter(Boolean).join('\n\n');
+      try {
+        if (o.input){
+          const v = window.prompt(text, '');
+          if (v === null) return Promise.resolve({ isConfirmed:false, isDismissed:true });
+          if (typeof o.preConfirm === 'function' && o.preConfirm(v) === false){
+            return Promise.resolve({ isConfirmed:false, isDismissed:true });
+          }
+          return Promise.resolve({ isConfirmed:true, value:v });
+        }
+        if (o.showCancelButton){
+          const ok = window.confirm(text);
+          return Promise.resolve({ isConfirmed:ok, isDismissed:!ok, value: ok || undefined });
+        }
+        if (typeof o.didOpen === 'function' && !o.icon) return Promise.resolve({ isConfirmed:false }); // หน้าต่าง loading — ข้าม
+        setTimeout(()=>{ try { showToast(text.slice(0, 220), o.icon === 'error' ? 'error' : (o.icon === 'warning' ? 'warning' : 'info')); } catch(e){} }, 0);
+      } catch(err){ console.warn('Swal fallback error:', err); }
+      return Promise.resolve({ isConfirmed:true, value:true });
+    },
+    close(){}, showLoading(){}, showValidationMessage(){}, isVisible(){ return false; },
+  };
+}
+function missingLibraryNames(){
+  const names = [];
+  if (!LIB_STATUS.swal)   names.push('หน้าต่างแจ้งเตือน');
+  if (typeof window.Chart === 'undefined') names.push('กราฟ');
+  if (typeof window.SignaturePad === 'undefined') names.push('ลายเซ็น');
+  if (typeof window.XLSX === 'undefined') names.push('Excel');
+  if (typeof window.html2canvas === 'undefined' || !(window.jspdf && window.jspdf.jsPDF)) names.push('PDF/PNG');
+  return names;
+}
+/* เรียกก่อนใช้ไลบรารีภายนอกทุกครั้ง — แจ้งสาเหตุที่แท้จริง แทนข้อความ "xxx is not defined" ที่ผู้ใช้อ่านไม่เข้าใจ */
+function requireLib(ok, label){
+  if (ok) return true;
+  showToast(`ใช้งาน${label}ไม่ได้ เพราะโหลดส่วนประกอบจากอินเทอร์เน็ตไม่สำเร็จ — กรุณาตรวจสอบการเชื่อมต่อแล้วรีเฟรชหน้าเว็บ`, 'error');
+  return false;
+}
+
+/* ================================================================
    ===============  CONFIG / ค่าคงที่ของระบบ  =====================
    ================================================================ */
 const CONFIG = {
@@ -1996,6 +2169,57 @@ function numFmt(n){ return Number(n).toLocaleString('th-TH'); }
 // เทียบรหัสร้านแบบไม่สนตัวพิมพ์เล็ก-ใหญ่และช่องว่างหัวท้าย (กัน QR/ไฟล์นำเข้าพิมพ์ "a-101" ไม่ตรงกับที่บันทึกไว้เป็น "A-101")
 function normalizeStoreId(id){ return String(id||'').trim().toUpperCase(); }
 
+/* ---------- v16: มาตรฐานข้อมูลร้านค้า ----------
+   สถานะร้านมาได้หลายทาง (พิมพ์มือใน Sheets, ไฟล์นำเข้า, ข้อมูลเก่าในเครื่อง) และเขียนต่างกัน
+   เช่น "active", " Active", "เปิด", "เปิดดำเนินการ" — เดิมระบบเทียบ === 'Active' ตรงๆ
+   ร้านที่สะกดต่างไปเล็กน้อยจึงหายไปจากรายการเลือกตรวจทั้งที่ยังเปิดอยู่
+   ⚠️ ต้องเช็ค "เปิด" ก่อน "ปิด" เสมอ เพราะคำว่า "เปิด" มีคำว่า "ปิด" ซ่อนอยู่ข้างใน
+   (บั๊กเดิมในตัวนำเข้าไฟล์: "เปิดดำเนินการ" ถูกตีความเป็น Closed) */
+function normalizeTenantStatus(s){
+  const v = String(s == null ? '' : s).trim();
+  if (!v) return 'Active';
+  if (/^(active|open)$|เปิด/i.test(v)) return 'Active';
+  if (/closed|close|inactive|ปิด|ยกเลิก|เลิก/i.test(v)) return 'Closed';
+  return 'Active';
+}
+function isTenantActive(t){ return !!t && normalizeTenantStatus(t.status) === 'Active'; }
+function normalizeTenant(t){
+  t = t || {};
+  const s = (v)=> String(v == null ? '' : v).trim();
+  return { storeId:s(t.storeId), name:s(t.name), type:s(t.type), zone:s(t.zone), floor:s(t.floor),
+           contact:s(t.contact), phone:s(t.phone), status:normalizeTenantStatus(t.status) };
+}
+/* ทำความสะอาดรายการร้านค้า: ตัดแถวที่ไม่มีรหัส และรวมรหัสซ้ำ (ต่างแค่ตัวพิมพ์/ช่องว่าง) ให้เหลือตัวเดียว
+   รหัสซ้ำทำให้ร้านเดียวกันโผล่สองรอบในช่องค้นหา และถูกนับเป็นสองร้านในสถิติ */
+function cleanTenantList(list){
+  const map = new Map();
+  (Array.isArray(list) ? list : []).forEach(raw=>{
+    const t = normalizeTenant(raw);
+    const key = normalizeStoreId(t.storeId);
+    if (!key) return;
+    // ตัวแรกชนะ: แถวแรกใน Sheets คือแถวต้นฉบับ (saveTenant อัปเดตแถวเดิมเสมอ) ส่วนแถวซ้ำเกิดจากพิมพ์มือ/นำเข้าซ้ำ
+    // จึงคงรหัสที่สะกดแบบต้นฉบับไว้ (ผลตรวจเก่าอ้างรหัสนี้) แล้วเติมเฉพาะช่องที่ต้นฉบับยังว่างจากแถวซ้ำ
+    const prev = map.get(key);
+    if (!prev){ map.set(key, t); return; }
+    ['name','type','zone','floor','contact','phone'].forEach(f=>{ if (!prev[f] && t[f]) prev[f] = t[f]; });
+  });
+  return Array.from(map.values());
+}
+
+/* คีย์วันแบบ ค.ศ. "YYYY-MM-DD" ของผลตรวจ — ใช้เทียบ "วันเดียวกัน" ให้ถูกไม่ว่าวันที่จะมาในรูปแบบไหน
+   (พ.ศ./ค.ศ./Date object) คืนค่าว่างเมื่ออ่านไม่ออก — จงใจไม่ใช้ parseBEDateStr
+   เพราะตัวนั้นคืน "วันนี้" เป็นค่าสำรอง ซึ่งจะทำให้รายการวันที่เสียถูกนับเป็นของวันนี้ */
+function dayKeyOf(v){
+  const d = (v instanceof Date) ? v : parseFlexibleDate(v);
+  if (!(d instanceof Date) || isNaN(d.getTime())) return '';
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+/* ตัดอักขระที่ใช้เป็นชื่อไฟล์ไม่ได้ (Windows ห้าม \ / : * ? " < > |) — รหัสร้านอย่าง "A/101" ทำให้ดาวน์โหลดล้ม */
+function safeFilePart(s){
+  return String(s == null ? '' : s).replace(/[\\/:*?"<>|\s]+/g, '_').replace(/_+/g, '_').slice(0, 60) || 'file';
+}
+
 /* ชื่อเจ้าหน้าที่ผู้ตรวจ — จำไว้ในเครื่องเพื่อไม่ต้องพิมพ์ใหม่ทุกร้าน
    เดิมระบบ hardcode คำว่า "จนท.ตรวจ (ผู้ใช้งานปัจจุบัน)" ลงใบรายงานจริงที่ส่งให้ผู้เช่า
    ซึ่งใช้อ้างอิงไม่ได้เลยว่าใครเป็นคนตรวจ */
@@ -2171,7 +2395,7 @@ function init(){
   // แยกแต่ละขั้นตอนด้วย try-catch ของตัวเอง เพื่อไม่ให้ปัญหาจากขั้นตอนหนึ่ง (เช่น ตารางข้อมูล)
   // ลามไปทำให้ขั้นตอนสำคัญถัดไป (การแสดงเมนูตามบทบาท, หน้าล็อกจอ) ไม่ถูกเรียกใช้งานตามไปด้วย
   const steps = [setupPWAAssets, setupHeaderLogo, setupDarkMode, setupNav, setupRoleSwitch, populateStoreSelect,
-    setupInspectionTypeButtons, renderTenantsTable, renderHistoryTable, renderDashboard,
+    setupStorePicker, setupInspectionTypeButtons, renderTenantsTable, renderHistoryTable, renderDashboard,
     setupConnectivityWatch, setupUnloadGuard, setupDraftAutoSaveInputs, refreshPeriodOffsetOptions];
   steps.forEach(fn=>{
     try { fn(); } catch(err){ console.error('เริ่มต้นระบบส่วน "' + fn.name + '" ผิดพลาด:', err); }
@@ -2200,7 +2424,74 @@ const STORAGE_KEYS = {
   adminPin:'mallguard_admin_pin_hash',
   adminRecovery:'mallguard_admin_recovery_hash',   // แฮชของรหัสกู้คืน (คนละตัวกับรหัสผ่าน)
   draft:'mallguard_inspection_draft_v1',           // ฟอร์มที่กรอกค้างไว้ (auto-save)
+  pendingOps:'mallguard_pending_ops_v1',           // v16: คำสั่งลบ/แก้ร้านค้าที่ยังยืนยันไม่ได้ว่าถึง Sheets
+  opsInit:'mallguard_ops_initialized_v16',         // v16: เคยผ่านการซิงก์แบบใหม่ครั้งแรกแล้วหรือยัง
 };
+
+/* ================================================================
+   ===============  v16: คิวคำสั่งที่รอส่งถึง Google Sheets  ========
+   ปัญหาเดิม: ลบผลตรวจ/ลบร้าน/แก้ร้าน ตอนเน็ตหลุด -> คำสั่งหายไปเงียบๆ (no-cors ไม่รู้ผล)
+   แล้วพอซิงก์รอบถัดไป ข้อมูลเก่าจาก Sheets ก็ไหลกลับมาทับ = "ลบแล้วฟื้น / แก้แล้วเด้งกลับ"
+   วิธีแก้: จดคำสั่งไว้ในเครื่องจนกว่าจะเห็นกับตาจากข้อมูลที่ดึงกลับมาว่า Sheets เปลี่ยนตามแล้วจริง
+     - delInspections : id ผลตรวจที่ลบแล้ว (tombstone) -> ระหว่างนั้นกรองออกจากข้อมูลที่ดึงมา
+     - delTenants     : รหัสร้านที่ลบแล้ว
+     - saveTenants    : ข้อมูลร้านที่แก้/เพิ่มล่าสุด -> ใช้ค่าในเครื่องแทนของ Sheets จนกว่าจะตรงกัน
+   ================================================================ */
+let PENDING_OPS = { delInspections:{}, delTenants:{}, saveTenants:{} };
+function loadPendingOps(){
+  try {
+    const o = JSON.parse(localStorage.getItem(STORAGE_KEYS.pendingOps) || '{}') || {};
+    PENDING_OPS = {
+      delInspections: (o.delInspections && typeof o.delInspections === 'object') ? o.delInspections : {},
+      delTenants:     (o.delTenants && typeof o.delTenants === 'object') ? o.delTenants : {},
+      saveTenants:    (o.saveTenants && typeof o.saveTenants === 'object') ? o.saveTenants : {},
+    };
+  } catch(err){ PENDING_OPS = { delInspections:{}, delTenants:{}, saveTenants:{} }; }
+}
+function savePendingOps(){
+  try { localStorage.setItem(STORAGE_KEYS.pendingOps, JSON.stringify(PENDING_OPS)); }
+  catch(err){ console.warn('บันทึกคิวคำสั่งรอส่งไม่สำเร็จ:', err); }
+}
+function pendingOpsCount(){
+  return Object.keys(PENDING_OPS.delInspections).length + Object.keys(PENDING_OPS.delTenants).length
+       + Object.keys(PENDING_OPS.saveTenants).length;
+}
+function queueTenantSave(t){
+  const key = normalizeStoreId(t && t.storeId);
+  if (!key) return;
+  PENDING_OPS.saveTenants[key] = normalizeTenant(t);
+  delete PENDING_OPS.delTenants[key];
+  savePendingOps();
+}
+function queueTenantDelete(storeId){
+  const key = normalizeStoreId(storeId);
+  if (!key) return;
+  PENDING_OPS.delTenants[key] = Date.now();
+  delete PENDING_OPS.saveTenants[key];
+  savePendingOps();
+}
+function queueInspectionDelete(id){
+  if (!id) return;
+  PENDING_OPS.delInspections[String(id)] = Date.now();
+  savePendingOps();
+}
+/* ส่งคำสั่งที่ค้างทั้งหมดซ้ำ (idempotent ทั้งหมด — ส่งซ้ำกี่รอบผลก็เหมือนเดิม จึงปลอดภัย) */
+function flushPendingOps(){
+  if (!isBackendConfigured()) return Promise.resolve();
+  const jobs = [];
+  Object.keys(PENDING_OPS.delInspections).forEach(id=> jobs.push(postToBackend('deleteInspection', { id })));
+  Object.keys(PENDING_OPS.delTenants).forEach(k=> jobs.push(postToBackend('deleteTenant', { storeId:k })));
+  Object.values(PENDING_OPS.saveTenants).forEach(t=> jobs.push(postToBackend('saveTenant', t)));
+  return Promise.all(jobs);
+}
+/* เทียบว่าร้านใน Sheets ตรงกับที่แก้ไว้ในเครื่องแล้วหรือยัง (ถ้าตรง = คำสั่งถึงแล้ว เลิกติดตามได้) */
+function tenantEquals(a, b){
+  const x = normalizeTenant(a), y = normalizeTenant(b);
+  // เบอร์โทรเทียบเฉพาะตัวเลข และไม่สนเลข 0 นำหน้า — Sheets รุ่นเก่าเคยตัด 0 ทิ้ง (0812… -> 812…)
+  // ถ้าเทียบตรงๆ ร้านนั้นจะถูกมองว่า "ยังไม่ตรง" แล้วส่งซ้ำไม่รู้จบทุกครั้งที่ซิงก์
+  const digits = (p)=> String(p || '').replace(/\D/g, '').replace(/^0+/, '');
+  return ['name','type','zone','floor','contact','status'].every(k=> x[k] === y[k]) && digits(x.phone) === digits(y.phone);
+}
 
 /* ================================================================
    ===============  บันทึกฟอร์มที่กรอกค้างอัตโนมัติ (Auto-save)  =====
@@ -2220,10 +2511,12 @@ function saveDraftSoon(){
   draftSaveTimer = setTimeout(saveDraftNow, 600);
 }
 
+let draftQuotaWarned = false;
 function saveDraftNow(){
   if (!State.draft || !State.draft.storeId) return;
+  let payload;
   try {
-    const payload = {
+    payload = {
       savedAt: Date.now(),
       storeId: State.draft.storeId,
       type: State.draft.type,
@@ -2235,13 +2528,21 @@ function saveDraftNow(){
       inspector: (document.getElementById('inspectorNameInput') || {}).value || '',
       photos: State.photos || [],
     };
+  } catch(err){ console.warn('เตรียมร่างฟอร์มไม่สำเร็จ:', err); return; }
+  try {
     localStorage.setItem(STORAGE_KEYS.draft, JSON.stringify(payload));
+    draftQuotaWarned = false;
   } catch(err){
-    // พื้นที่เต็มมักเกิดจากรูป base64 — ลองบันทึกร่างแบบไม่มีรูปดีกว่าไม่บันทึกอะไรเลย
+    // พื้นที่เต็มมักเกิดจากรูป base64 — บันทึก "คำตอบล่าสุด" แบบไม่มีรูปแทน
+    // บั๊กเดิม (v9-v15): ไปอ่านร่าง "ฉบับเก่า" ในเครื่องมาตัดรูปแล้วเขียนกลับ
+    // ผลคือคำตอบที่เพิ่งกรอกไม่ถูกบันทึกเลย ทั้งที่ผู้ใช้เข้าใจว่าระบบสำรองให้อยู่
     try {
-      const light = JSON.parse(localStorage.getItem(STORAGE_KEYS.draft) || '{}');
-      light.photos = [];
+      const light = Object.assign({}, payload, { photos: [], photosDropped: (payload.photos || []).length });
       localStorage.setItem(STORAGE_KEYS.draft, JSON.stringify(light));
+      if (!draftQuotaWarned && light.photosDropped){
+        draftQuotaWarned = true;
+        showToast('⚠️ พื้นที่ในเครื่องเต็ม ร่างสำรองเก็บได้เฉพาะคำตอบ (ไม่รวมรูป) — รูปในหน้านี้ยังอยู่ครบ กรุณาบันทึกผลให้เสร็จก่อนปิดแอป', 'warning');
+      }
     } catch(err2){ console.warn('บันทึกร่างฟอร์มไม่สำเร็จ:', err2); }
   }
 }
@@ -2300,18 +2601,23 @@ function offerDraftRestore(){
 function restoreDraft(d){
   try {
     const sel = document.getElementById('storeSelect');
-    if (!findTenant(d.storeId)){
+    const tenant = findTenant(d.storeId);
+    if (!tenant){
       showToast('ร้านค้าในฟอร์มที่ค้างไว้ไม่มีอยู่ในระบบแล้ว จึงกู้คืนไม่ได้', 'error');
       clearDraft();
       return;
     }
     goToPage('inspect');
-    sel.value = d.storeId;
-    selectStore(d.storeId);          // สร้างฟอร์มเปล่าขึ้นมาก่อน
+    // ใช้รหัสจากข้อมูลร้านจริง ไม่ใช่รหัสในร่าง — ถ้าตัวพิมพ์/ช่องว่างต่างกัน sel.value จะตั้งไม่ติด
+    ensureStoreOption(tenant);
+    sel.value = tenant.storeId;
+    selectStore(tenant.storeId);     // สร้างฟอร์มเปล่าขึ้นมาก่อน
+    if (!State.draft) throw new Error('สร้างฟอร์มของร้านนี้ไม่สำเร็จ');
 
     // แล้วค่อยเติมค่าที่กรอกไว้กลับเข้าไป
-    State.draft.checks = d.checks || {};
-    State.draft.type = d.type || State.draft.type;
+    State.draft.checks = (d.checks && typeof d.checks === 'object') ? d.checks : {};
+    // ต้องอัปเดตปุ่มประเภทการตรวจด้วย ไม่งั้นหน้าจอโชว์ "ประจำสัปดาห์" แต่ค่าที่จะบันทึกจริงเป็น "ฉุกเฉิน"
+    State.draft.type = setInspectionTypeUI(d.type || State.draft.type);
     State.draft.contact = d.contact || State.draft.contact;
     State.draft.phone = d.phone || State.draft.phone;
     State.photos = Array.isArray(d.photos) ? d.photos : [];
@@ -2325,7 +2631,10 @@ function restoreDraft(d){
 
     renderChecklist();
     renderPhotoGallery();
-    showToast('กู้คืนฟอร์มที่กรอกค้างไว้เรียบร้อย — ลายเซ็นต้องเซ็นใหม่', 'success');
+    syncStorePickerDisplay();
+    showToast(d.photosDropped
+      ? `กู้คืนฟอร์มแล้ว — แต่รูป ${d.photosDropped} รูปไม่ได้ถูกสำรองไว้ (พื้นที่เครื่องเต็ม) กรุณาถ่ายใหม่ และเซ็นชื่อใหม่`
+      : 'กู้คืนฟอร์มที่กรอกค้างไว้เรียบร้อย — ลายเซ็นต้องเซ็นใหม่', d.photosDropped ? 'warning' : 'success');
   } catch(err){
     console.error('กู้คืนฟอร์มไม่สำเร็จ:', err);
     showToast('กู้คืนฟอร์มไม่สำเร็จ กรุณาเริ่มกรอกใหม่', 'error');
@@ -2706,6 +3015,7 @@ function persistTenants(){
  */
 function stripHeavyFieldsIfSynced(record){
   if (!record || !record.synced) return record; // ยังไม่ยืนยัน = เก็บ base64 ไว้ก่อน ห้ามทิ้ง
+  if (record.photosUploaded === false) return record; // v16: รูปขึ้น Drive ไม่ครบ = base64 ในเครื่องคือสำเนาเดียว ห้ามทิ้ง
   const isDataUrl = (v)=> typeof v === 'string' && v.indexOf('data:') === 0;
   const light = Object.assign({}, record);
   // เก็บเฉพาะลิงก์ Drive ทิ้ง base64 (ถ้ายังไม่มีลิงก์กลับมา ให้เก็บเป็น array ว่างแทน รูปจริงอยู่บน Drive แล้ว)
@@ -2742,16 +3052,18 @@ function loadPersistedData(){
     const savedTenants = localStorage.getItem(STORAGE_KEYS.tenants);
     if (savedTenants){
       const parsed = JSON.parse(savedTenants);
-      if (Array.isArray(parsed) && parsed.length) TENANTS = parsed;
+      if (Array.isArray(parsed) && parsed.length) TENANTS = cleanTenantList(parsed);
     }
   } catch(err){ console.warn('โหลดข้อมูลร้านค้าที่เคยบันทึกไว้ไม่สำเร็จ:', err); }
   try {
     const savedHistory = localStorage.getItem(STORAGE_KEYS.history);
     if (savedHistory){
       const parsed = JSON.parse(savedHistory);
-      if (Array.isArray(parsed)) INSPECTION_HISTORY = parsed;
+      // กรองของเสียออก (ไม่มี id / ไม่ใช่อ็อบเจกต์) — แถวเดียวที่เสียเคยทำให้ตารางประวัติล้มทั้งหน้า
+      if (Array.isArray(parsed)) INSPECTION_HISTORY = parsed.filter(h=> h && typeof h === 'object' && h.id);
     }
   } catch(err){ console.warn('โหลดประวัติการตรวจที่เคยบันทึกไว้ไม่สำเร็จ:', err); }
+  loadPendingOps();
 }
 
 /* ================================================================
@@ -2768,10 +3080,53 @@ let splashActive = true;   // เริ่มต้นแอปด้วยห�
 let splashClockTimer = null;
 let idlePaused = false;    // true ระหว่างเปิดกล้อง/สแกน QR — กันจอล็อกอัตโนมัติขัดจังหวะการถ่ายรูป/สแกน
 
+/* v16: เข้าแอปอัตโนมัติหลังแสดงโลโก้
+   - ตอนเปิดแอป: แสดงโลโก้ SPLASH_AUTO_ENTER_MS แล้วเข้าเอง (บังคับอยู่ในช่วง 2-4 วินาที ตามที่กำหนด)
+     สั้นกว่า 2 วินาทีผู้ใช้จะไม่ทันเห็นแบรนด์ ยาวกว่า 4 วินาทีจะรู้สึกว่าแอปช้า
+   - ตอนพักจอ (ไม่ใช้งาน 1 นาที): ค่าเริ่มต้น = ต้องแตะเข้า
+     เพราะจุดประสงค์ของการพักจอคือซ่อนข้อมูลภายในจากคนเดินผ่าน ถ้าเด้งกลับเองใน 3 วินาที
+     ข้อมูลจะกลับมาโชว์บนจอที่ไม่มีคนเฝ้า — ถ้าต้องการให้เข้าเองด้วย เปลี่ยนเป็น true ได้ */
+const SPLASH_AUTO_ENTER_MS = 3000;
+const SPLASH_AUTO_ENTER_ON_IDLE = false;
+let splashAutoTimer = null;
+
+function scheduleSplashAutoEnter(){
+  cancelSplashAutoEnter();
+  const ms = Math.min(4000, Math.max(2000, Number(SPLASH_AUTO_ENTER_MS) || 3000));
+  const splash = document.getElementById('splashScreen');
+  const hint = document.getElementById('splashHint');
+  if (splash){
+    splash.style.setProperty('--splash-ms', ms + 'ms');
+    splash.classList.remove('is-auto');
+    void splash.offsetWidth;          // บังคับ reflow ให้แถบนับถอยหลังเริ่มจาก 0 ใหม่ทุกครั้ง
+    splash.classList.add('is-auto');
+  }
+  if (hint) hint.textContent = '⏳ กำลังเข้าสู่ระบบ... แตะเพื่อเข้าทันที';
+  splashAutoTimer = setTimeout(()=>{
+    splashAutoTimer = null;
+    try { enterApp(); } catch(err){ reportUnexpectedError('splashAutoEnter', err); }
+  }, ms);
+}
+function cancelSplashAutoEnter(){
+  if (splashAutoTimer){ clearTimeout(splashAutoTimer); splashAutoTimer = null; }
+  const splash = document.getElementById('splashScreen');
+  if (splash) splash.classList.remove('is-auto');
+}
+function setSplashTapHint(){
+  const hint = document.getElementById('splashHint');
+  if (hint) hint.textContent = '👆 แตะที่หน้าจอเพื่อเริ่มใช้งาน';
+}
+
 function setupSplashAndIdle(){
   buildSplashParticles();
   updateSplashClock();
   splashClockTimer = setInterval(updateSplashClock, 1000);
+
+  // คีย์บอร์ด (Enter/Space) ก็เข้าแอปได้ — สำหรับเดสก์ท็อปที่ไม่มีจอสัมผัส
+  document.addEventListener('keydown', e=>{
+    if (splashActive && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); enterApp(); }
+  });
+  scheduleSplashAutoEnter();   // เปิดแอปครั้งแรก -> เข้าเองอัตโนมัติ
 
   // ฟัง event การใช้งานทุกชนิด (เมาส์/คีย์บอร์ด/สัมผัส/สกรอลล์) เพื่อรีเซ็ตตัวจับเวลา
   // ใช้ passive:true เพื่อไม่ให้กระทบประสิทธิภาพการสกรอลล์บนมือถือ
@@ -2828,12 +3183,19 @@ function setupDraftAutoSaveInputs(){
 function enterApp(){
   if (!splashActive) return;
   splashActive = false;
+  cancelSplashAutoEnter();   // กันเข้าแอปซ้ำ (แตะเองก่อนตัวจับเวลาครบ แล้วตัวจับเวลายิงตามมาอีกรอบ)
+  setSplashTapHint();
   // ถามเรื่องฟอร์มที่กรอกค้างหลังผู้ใช้เข้าแอปแล้วเท่านั้น
   // ถ้าเด้งตอนยังอยู่หน้า Splash ผู้ใช้จะยังไม่ทันตั้งตัวแล้วกดผิดจนข้อมูลที่กรอกไว้หาย
   // ใช้ครั้งเดียวต่อการเปิดแอป ไม่ถามซ้ำตอนกลับมาจากหน้าพักจอ
   if (!draftRestoreOffered){
     draftRestoreOffered = true;
     setTimeout(()=>{ try { offerDraftRestore(); } catch(err){ console.warn('เสนอกู้คืนร่างไม่สำเร็จ:', err); } }, 500);
+    // แจ้งไลบรารีที่โหลดไม่สำเร็จหลังเข้าแอปแล้ว (ถ้าแจ้งตอนอยู่หน้าโลโก้ toast จะถูกบังจนมองไม่เห็น)
+    const missing = missingLibraryNames();
+    if (missing.length){
+      setTimeout(()=> showToast(`⚠️ โหลดส่วนประกอบไม่สำเร็จ: ${missing.join(', ')} — ฟังก์ชันที่เกี่ยวข้องอาจใช้ไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ตแล้วรีเฟรช`, 'error'), 900);
+    }
   }
   document.getElementById('splashScreen').classList.add('splash-hidden');
   goToPage('dashboard'); // กลับหน้าแรกทุกครั้งที่เข้าใหม่ + rerender ข้อมูลล่าสุด
@@ -2848,7 +3210,9 @@ function showSplash(){
 
   // ปิดกล้อง/โมดัลทุกตัวก่อนพักจอ — กันกล้องเปิดค้างกินแบตและละเมิดความเป็นส่วนตัว
   try{ closeCamera(); }catch(e){}
+  try{ closeStorePicker(); }catch(e){}
   document.querySelectorAll('.modal-backdrop').forEach(m=> m.classList.add('js-hidden'));
+  State.editingRecordId = null;   // โมดัลแก้ไขถูกปิดไปแล้ว ไม่ควรค้างสถานะกำลังแก้ไข
 
   // ล็อกจอแล้วลดสิทธิ์กลับเป็น Inspector เสมอ (เฉพาะกรณีตั้งรหัสผ่าน Admin ไว้แล้ว) กันคนอื่นมาเจอ
   // แท็บเล็ตที่ไม่ได้ล็อกแล้วได้สิทธิ์ Admin ต่อทันทีโดยไม่ต้องใส่รหัส — ต้องปลดล็อกรหัสใหม่ทุกครั้ง
@@ -2861,6 +3225,7 @@ function showSplash(){
 
   updateSplashClock();
   document.getElementById('splashScreen').classList.remove('splash-hidden');
+  if (SPLASH_AUTO_ENTER_ON_IDLE) scheduleSplashAutoEnter(); else setSplashTapHint();
 }
 
 // รีเซ็ตตัวจับเวลาว่าง ทุกครั้งที่มีการใช้งาน (ทำงานเฉพาะตอนอยู่ในแอปและไม่ได้ถูก pause ไว้)
@@ -2971,14 +3336,16 @@ function roundRectPath(ctx, x, y, w, h, r){
 function setupDarkMode(){
   // ธีม "ดำ-ทอง-ส้ม" ออกแบบมาให้โหมดมืดเป็นค่าเริ่มต้น (เป็นอัตลักษณ์หลักของแอป)
   // ผู้ใช้ที่ต้องการโหมดสว่าง (เช่น ตรวจกลางแดดหน้าลานจอด) กดสลับเองได้และระบบจะจำไว้
-  const saved = localStorage.getItem('mallguard_theme');
+  // localStorage อาจถูกปิด (โหมดส่วนตัวบางเบราว์เซอร์) — ต้องไม่ทำให้ขั้นตอนเริ่มต้นล้ม
+  let saved = null;
+  try { saved = localStorage.getItem('mallguard_theme'); } catch(err){ /* ใช้ค่าเริ่มต้น */ }
   if (saved !== 'light') document.documentElement.classList.add('dark');
   updateDarkIcon();
   document.getElementById('darkToggle').addEventListener('click', ()=>{
     document.documentElement.classList.toggle('dark');
-    localStorage.setItem('mallguard_theme', document.documentElement.classList.contains('dark') ? 'dark':'light');
+    try { localStorage.setItem('mallguard_theme', document.documentElement.classList.contains('dark') ? 'dark':'light'); } catch(err){ /* จำไม่ได้ก็ไม่เป็นไร */ }
     updateDarkIcon();
-    renderDashboard(); // rerender charts เพื่ออัปเดตสีให้เข้ากับธีม
+    try { renderDashboard(); } catch(err){ console.error('renderDashboard error:', err); } // rerender charts เพื่ออัปเดตสีให้เข้ากับธีม
   });
 }
 function updateDarkIcon(){
@@ -3148,8 +3515,9 @@ function findRecordsWithBadDate(){
 function computePeriodStats(period){
   const records = INSPECTION_HISTORY.filter(h=> isInPeriod(h, period));
   const badDateCount = findRecordsWithBadDate().length;
-  const activeTenants = TENANTS.filter(t=> t.status === 'Active');
+  const activeTenants = TENANTS.filter(isTenantActive);
   const totalStores = activeTenants.length;
+  const activeIdSet = new Set(activeTenants.map(t=> normalizeStoreId(t.storeId)));
 
   const counts = { compliant:0, minor:0, major:0 };
   records.forEach(h=>{ if (counts[h.grade] !== undefined) counts[h.grade]++; });
@@ -3159,9 +3527,11 @@ function computePeriodStats(period){
   const complianceRate = n ? Math.round(counts.compliant / n * 100) : 0;
 
   // จำนวนร้านที่ถูกตรวจในรอบนี้ (นับร้านไม่ซ้ำ ไม่ใช่จำนวนครั้งที่ตรวจ)
-  const storeIds = new Set(records.map(h=> normalizeStoreId(h.storeId)));
+  // v16: นับเฉพาะร้านที่ยังเปิดอยู่ ให้ตัวตั้งกับตัวหารเป็นชุดเดียวกัน — เดิมนับร้านที่ปิดไปแล้วด้วย
+  // ความครอบคลุมจึงเกิน 100% ได้ (เช่น 102/100 ร้าน)
+  const storeIds = new Set(records.map(h=> normalizeStoreId(h.storeId)).filter(id=> activeIdSet.has(id)));
   const storesInspected = storeIds.size;
-  const coverageRate = totalStores ? Math.round(storesInspected / totalStores * 100) : 0;
+  const coverageRate = totalStores ? Math.min(100, Math.round(storesInspected / totalStores * 100)) : 0;
 
   // ---- อันดับหัวข้อที่ตกบ่อยที่สุด ----
   // ใช้วางแผนอบรมผู้เช่าได้ตรงจุด แทนการอบรมทุกหัวข้อเท่ากันหมดทั้งที่บางข้อแทบไม่มีใครตก
@@ -3272,12 +3642,21 @@ let chartDoughnut, chartBar, chartTrend, chartRadar;
 const TOP_STORES_LIMIT = 10;
 
 function computeDashboardStats(){
-  const total = TENANTS.filter(t=>t.status==='Active').length;
-  const inspectedStoreIds = new Set(INSPECTION_HISTORY.map(h=>h.storeId));
+  const activeTenants = TENANTS.filter(isTenantActive);
+  const total = activeTenants.length;
+  /* v16: "ตรวจแล้วรอบนี้" = ร้านที่เปิดอยู่ และมีผลตรวจใน "เดือนปัจจุบัน"
+     บั๊กเดิม: นับจากประวัติตลอดกาล -> ตรวจครบครั้งเดียวเดือนแรก ความคืบหน้าค้าง 100% ตลอดไป
+     และนับรหัสดิบ (ไม่ normalize) รวมร้านที่ปิด/ถูกลบไปแล้ว -> ตัวเลขเกินจำนวนร้านจริงได้ */
+  const activeIds = new Set(activeTenants.map(t=> normalizeStoreId(t.storeId)));
+  const roundPeriod = getPeriodRange('month', 0);
+  const inspectedStoreIds = new Set(
+    INSPECTION_HISTORY.filter(h=> isInPeriod(h, roundPeriod))
+      .map(h=> normalizeStoreId(h.storeId)).filter(id=> activeIds.has(id))
+  );
   const inspected = inspectedStoreIds.size;
   const notInspected = Math.max(total - inspected, 0);
   const counts = { compliant:0, minor:0, major:0 };
-  INSPECTION_HISTORY.forEach(h=> counts[h.grade]++ );
+  INSPECTION_HISTORY.forEach(h=>{ if (counts[h.grade] !== undefined) counts[h.grade]++; });
 
   // คะแนนเฉลี่ยแยกโซน
   const zoneScores = {};
@@ -3303,24 +3682,26 @@ function computeDashboardStats(){
      แค่ 5 อันดับแทบไม่ครอบคลุมร้านที่ตกจริงในแต่ละรอบ ทำให้ตารางนี้ใช้วางแผนงานไม่ได้ */
   const latestByStore = {};
   INSPECTION_HISTORY.forEach(h=>{
-    if (!latestByStore[h.storeId] || parseBEDateStr(h.date) > parseBEDateStr(latestByStore[h.storeId].date)) {
-      latestByStore[h.storeId] = h;
+    const key = normalizeStoreId(h.storeId);   // รหัสต่างตัวพิมพ์ = ร้านเดียวกัน ต้องไม่โผล่สองอันดับ
+    if (!latestByStore[key] || parseBEDateStr(h.date) > parseBEDateStr(latestByStore[key].date)) {
+      latestByStore[key] = h;
     }
   });
   // เรียงคะแนนต่ำก่อน ถ้าคะแนนเท่ากันให้ major มาก่อน minor (ความรุนแรงเป็นตัวตัดสินลำดับที่สอง)
   const gradeWeight = { major:0, minor:1, compliant:2 };
   const top5 = Object.values(latestByStore).sort((a,b)=>
-    (a.score - b.score) || ((gradeWeight[a.grade] ?? 3) - (gradeWeight[b.grade] ?? 3))
+    ((Number(a.score)||0) - (Number(b.score)||0)) || ((gradeWeight[a.grade] ?? 3) - (gradeWeight[b.grade] ?? 3))
   ).slice(0, TOP_STORES_LIMIT);
 
   /* ---------- KPI เพิ่มเติม (v3) ---------- */
   const nInsp = INSPECTION_HISTORY.length;
   // คะแนนเฉลี่ยรวมทุกผลตรวจ — กันหารด้วยศูนย์เมื่อยังไม่มีข้อมูล
-  const avgScore = nInsp ? Math.round(INSPECTION_HISTORY.reduce((s,h)=>s+h.score,0) / nInsp) : 0;
+  // Number() กันคะแนนที่มาเป็นข้อความ ("85") ซึ่งจะถูกต่อสตริงแทนการบวก -> คะแนนเฉลี่ยเพี้ยนเป็นหลักล้าน
+  const avgScore = nInsp ? Math.round(INSPECTION_HISTORY.reduce((s,h)=>s+(Number(h.score)||0),0) / nInsp) : 0;
   // อัตราผ่านมาตรฐาน (Compliance Rate) = compliant / จำนวนผลตรวจทั้งหมด
   const complianceRate = nInsp ? Math.round(counts.compliant / nInsp * 100) : 0;
   // ความคืบหน้ารอบตรวจ = ร้านที่ตรวจแล้ว / ร้าน Active ทั้งหมด
-  const progressRate = total ? Math.round(inspected / total * 100) : 0;
+  const progressRate = total ? Math.min(100, Math.round(inspected / total * 100)) : 0;
   // จำนวนงานค้างแก้ไข = ผลตรวจล่าสุดต่อร้านที่ยังเป็น minor/major (ยังไม่กลับมาผ่าน)
   const openDefects = Object.values(latestByStore).filter(h=>h.grade!=='compliant').length;
 
@@ -3337,15 +3718,21 @@ function computeDashboardStats(){
   const catLabels = CHECKLIST_ITEMS.map(i=>`${i.no}. ${i.name}`);
 
   // แนวโน้มคะแนนเฉลี่ยรายวัน — เรียงตามวันที่จริง (normalize พ.ศ. เป็น Date ก่อนเรียง)
+  // v16: จัดกลุ่มด้วยคีย์วันแบบ ค.ศ. — วันเดียวกันที่เขียนต่างรูปแบบ (พ.ศ./ค.ศ.) เคยแยกเป็นสองจุดบนกราฟ
+  // รายการที่วันที่อ่านไม่ออกไม่ถูกนับ (เดิมถูกยัดเป็น "วันนี้" ทำให้จุดของวันนี้เพี้ยน)
   const byDate = {};
   INSPECTION_HISTORY.forEach(h=>{
-    if (!byDate[h.date]) byDate[h.date] = { sum:0, count:0 };
-    byDate[h.date].sum += h.score; byDate[h.date].count++;
+    const key = dayKeyOf(h.date);
+    if (!key) return;
+    if (!byDate[key]) byDate[key] = { sum:0, count:0 };
+    byDate[key].sum += (Number(h.score) || 0); byDate[key].count++;
   });
-  const trendDates = Object.keys(byDate).sort((a,b)=> parseBEDateStr(a) - parseBEDateStr(b));
+  const trendDates = Object.keys(byDate).sort();   // "YYYY-MM-DD" เรียงแบบข้อความ = เรียงตามเวลา
+  const multiYear = trendDates.length > 1 && trendDates[0].slice(0,4) !== trendDates[trendDates.length-1].slice(0,4);
   const trendLabels = trendDates.map(d=>{
-    const dt = parseBEDateStr(d);
-    return `${dt.getDate()} ${THAI_MONTHS[dt.getMonth()].slice(0,3)}.`;
+    const [y, m, dd] = d.split('-').map(Number);
+    // ข้อมูลข้ามปี ต้องมีปีกำกับ ไม่งั้น "5 ม.ค." ของสองปีดูเหมือนวันเดียวกัน
+    return `${dd} ${THAI_MONTHS[m-1].slice(0,3)}.${multiYear ? ' ' + String(y + 543).slice(2) : ''}`;
   });
   const trendAvgs = trendDates.map(d=> Math.round(byDate[d].sum / byDate[d].count));
 
@@ -3364,7 +3751,7 @@ function renderDashboard(){
     </div>
     <div class="kpi-card" style="background-image:linear-gradient(135deg,var(--grad-2a),var(--grad-2b)); animation-delay:.1s;">
       <div class="text-sm opacity-90 mb-1">✅ ตรวจแล้วรอบนี้</div>
-      <div class="kpi-num" data-countup="${s.inspected}">0</div><div class="text-xs opacity-80 mt-1">ยังไม่ตรวจ ${numFmt(s.notInspected)} ร้าน</div>
+      <div class="kpi-num" data-countup="${s.inspected}">0</div><div class="text-xs opacity-80 mt-1">เดือนนี้ · ยังไม่ตรวจ ${numFmt(s.notInspected)} ร้าน</div>
     </div>
     <div class="kpi-card kpi-gold" style="background-image:linear-gradient(135deg,var(--grad-5a),var(--grad-5b)); animation-delay:.18s;">
       <div class="text-sm opacity-90 mb-1">⚠️ ข้อแก้ไขเล็กน้อย</div>
@@ -3498,18 +3885,376 @@ function populateStoreSelect(){
     sel.innerHTML = '<option value="">-- ยังไม่มีร้านค้าในระบบ กรุณาเพิ่ม/นำเข้าร้านค้าก่อน --</option>';
   } else {
     sel.innerHTML = '<option value="">-- เลือกร้านค้า --</option>' +
-      TENANTS.filter(t=>t.status==='Active').map(t=> `<option value="${escapeHtml(t.storeId)}">${escapeHtml(t.storeId)} — ${escapeHtml(t.name)} (${escapeHtml(t.zone)})</option>`).join('');
+      TENANTS.filter(isTenantActive).map(t=> `<option value="${escapeHtml(t.storeId)}">${escapeHtml(t.storeId)} — ${escapeHtml(t.name)} (${escapeHtml(t.zone)})</option>`).join('');
   }
 
-  // คืนค่าที่เลือกไว้เดิม ถ้าร้านนั้นยังอยู่ในรายการ (ไม่ยิง onchange ซ้ำ จึงไม่รีเซ็ตฟอร์มที่กรอกค้างไว้)
+  // คืนค่าที่เลือกไว้เดิม (ไม่ยิง onchange ซ้ำ จึงไม่รีเซ็ตฟอร์มที่กรอกค้างไว้)
+  // v16: ถ้าร้านที่กำลังกรอกอยู่ถูกเปลี่ยนเป็น Closed/ถูกลบระหว่างซิงก์ ให้คงตัวเลือกไว้ก่อน
+  // ไม่งั้นค่าใน select หายแต่ฟอร์มยังค้างอยู่ -> หน้าจอกับข้อมูลที่จะบันทึกไม่ตรงกัน
   if (previous){
-    const stillExists = Array.from(sel.options).some(o=> o.value === previous);
-    if (stillExists) sel.value = previous;
+    const t = findTenant(previous);
+    if (t) ensureStoreOption(t);
+    const match = Array.from(sel.options).find(o=> normalizeStoreId(o.value) === normalizeStoreId(previous));
+    if (match) sel.value = match.value;
   }
 
   // ใช้ .onchange แทน addEventListener เพราะฟังก์ชันนี้ถูกเรียกซ้ำหลายครั้งตลอดอายุแอป
   // (หลังเพิ่ม/ลบ/นำเข้าร้านค้า, ซิงก์จาก Sheets ฯลฯ) — addEventListener จะพอกพูน handler ซ้ำๆ ทำให้ selectStore() ยิงซ้ำหลายรอบ
   sel.onchange = ()=> selectStore(sel.value);
+
+  // ให้ช่องค้นหาแสดงข้อมูลล่าสุดหลังรายการร้านเปลี่ยน (เช่น ซิงก์เบื้องหลังเสร็จระหว่างเปิดรายการค้างอยู่)
+  try {
+    syncStorePickerDisplay();
+    if (StorePicker.open) renderStorePickerList();
+  } catch(err){ console.warn('อัปเดตช่องค้นหาร้านค้าไม่สำเร็จ:', err); }
+}
+
+/* เพิ่ม <option> ของร้านนี้ถ้ายังไม่มี (ร้าน Closed จะไม่ถูกใส่ในรายการปกติ) */
+function ensureStoreOption(tenant){
+  const sel = document.getElementById('storeSelect');
+  if (!sel || !tenant || !tenant.storeId) return;
+  const exists = Array.from(sel.options).some(o=> normalizeStoreId(o.value) === normalizeStoreId(tenant.storeId));
+  if (exists) return;
+  const opt = document.createElement('option');
+  opt.value = tenant.storeId;
+  opt.textContent = `${tenant.storeId} — ${tenant.name || ''}`;
+  sel.appendChild(opt);
+}
+
+/* ================================================================
+   ===============  v16: ช่องค้นหาร้านค้า (Store Picker)  ===========
+   หลักการออกแบบ
+   - เปิดช่องมาเห็นรายชื่อทั้งหมดทันที (เลื่อนหาได้เหมือน dropdown เดิม) และพิมพ์เพื่อกรองได้
+   - "ปรับข้อความให้อยู่ในรูปเดียวกัน" ก่อนเทียบ ทั้งคำค้นและข้อมูลร้าน:
+       ตัวพิมพ์เล็ก/ใหญ่, ช่องว่าง, ขีด, จุด, เลขไทย ๐-๙, สระอำที่พิมพ์เป็น ํ+า, อักขระมองไม่เห็น
+     เพราะผู้ใช้พิมพ์ "a101", "A 101", "ชั้น3" แต่ข้อมูลเก็บเป็น "A-101", "ชั้น 3"
+   - พิมพ์หลายคำ = ต้องเจอทุกคำ (AND) เช่น "อาหาร 3" = โซนอาหาร และ ชั้น 3
+   - เลือกร้านใหม่ขณะที่ฟอร์มร้านเดิมกรอกค้าง -> ถามยืนยันก่อน (เดิมล้างทิ้งเงียบๆ)
+   ================================================================ */
+const STORE_PICKER_MAX_RESULTS = 80;   // กันวาด DOM หลักพันแถวบนมือถือ — เกินนี้ให้พิมพ์เพิ่มเพื่อกรอง
+const StorePicker = { open:false, activeIndex:-1, results:[], blurTimer:null, bound:false };
+
+function normalizeSearchText(s){
+  let str = String(s == null ? '' : s);
+  try { str = str.normalize('NFC'); } catch(err){ /* เบราว์เซอร์เก่า — ข้าม */ }
+  return str
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')                  // อักขระความกว้างศูนย์ (มักติดมากับการคัดลอก)
+    .replace(/\u0E4D\u0E32/g, '\u0E33')                       // ํ + า -> ำ (พิมพ์สระอำแยกสองตัว)
+    .replace(/[\u0E50-\u0E59]/g, d=> String(d.charCodeAt(0) - 0x0E50))   // เลขไทย -> อารบิก
+    .toLowerCase()
+    .replace(/[\s\-_.\/,()#:]+/g, '');
+}
+
+/* ค้นหาร้าน: คืนผลที่เรียงตามความตรงแล้ว + ตัวเลขประกอบการแสดงผล */
+function searchStores(query){
+  const rawTokens = String(query || '').trim().split(/\s+/).filter(Boolean);
+  const tokens = rawTokens.map(normalizeSearchText).filter(Boolean);
+  // คำค้นทั้งประโยคแบบรวมเป็นก้อนเดียว — ผู้ใช้มักพิมพ์รหัสแบบเว้นวรรค เช่น "a 101" แทน "A-101"
+  // ถ้าไม่เทียบก้อนรวมกับรหัส ร้านที่ชื่อมีเลข 101 จะแซงร้านรหัส A-101 จริง
+  const joined = tokens.join('');
+  const active = [], seen = new Set();
+  let closedMatches = 0;
+
+  TENANTS.forEach(t=>{
+    const key = normalizeStoreId(t.storeId);
+    if (!key || seen.has(key)) return;      // กันร้านรหัสซ้ำโผล่สองแถว
+    seen.add(key);
+    const id = normalizeSearchText(t.storeId);
+    const name = normalizeSearchText(t.name);
+    const hay = [id, name, normalizeSearchText(t.zone), normalizeSearchText(t.floor), normalizeSearchText(t.type)].join('|');
+    let score = tokens.length ? 0 : 1;
+    for (const tok of tokens){
+      if (hay.indexOf(tok) < 0){ score = 0; break; }
+      if (id === tok) score += 100;
+      else if (id.indexOf(tok) === 0) score += 60;
+      else if (name.indexOf(tok) === 0) score += 50;
+      else if (name.indexOf(tok) > -1) score += 30;
+      else if (id.indexOf(tok) > -1) score += 25;
+      else score += 10;
+    }
+    if (!score) return;
+    if (joined && tokens.length > 1){
+      if (id === joined) score += 1000;
+      else if (id.indexOf(joined) === 0) score += 500;
+    }
+    if (!isTenantActive(t)){ closedMatches++; return; }   // ร้านปิดแล้วตรวจไม่ได้ — นับไว้บอกผู้ใช้
+    active.push({ t, score });
+  });
+
+  active.sort((a,b)=> (b.score - a.score) ||
+    String(a.t.storeId).localeCompare(String(b.t.storeId), 'th', { numeric:true, sensitivity:'base' }));
+  return {
+    rawTokens, total: active.length, closedMatches,
+    results: active.slice(0, STORE_PICKER_MAX_RESULTS).map(x=> x.t),
+    truncated: active.length > STORE_PICKER_MAX_RESULTS,
+  };
+}
+
+/* ไฮไลต์คำค้นในข้อความ (escape ทุกช่วงก่อนใส่แท็ก เพื่อกัน XSS จากชื่อร้านที่มี < >) */
+function highlightMatch(text, rawTokens){
+  const src = String(text == null ? '' : text);
+  if (!rawTokens || !rawTokens.length) return escapeHtml(src);
+  const lower = src.toLowerCase();
+  const ranges = [];
+  rawTokens.forEach(tok=>{
+    const q = String(tok).toLowerCase();
+    if (!q) return;
+    let from = 0, idx;
+    while ((idx = lower.indexOf(q, from)) > -1){ ranges.push([idx, idx + q.length]); from = idx + q.length; }
+  });
+  if (!ranges.length || lower.length !== src.length) return escapeHtml(src);
+  ranges.sort((a,b)=> a[0]-b[0]);
+  const merged = [];
+  ranges.forEach(r=>{
+    const last = merged[merged.length-1];
+    if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]); else merged.push(r.slice());
+  });
+  let out = '', pos = 0;
+  merged.forEach(([s,e])=>{
+    out += escapeHtml(src.slice(pos, s)) + '<mark class="sp-mark">' + escapeHtml(src.slice(s, e)) + '</mark>';
+    pos = e;
+  });
+  return out + escapeHtml(src.slice(pos));
+}
+
+/* รหัสร้านที่มีผลตรวจลงวันที่วันนี้แล้ว — ใช้ขึ้นป้ายเตือนกันเดินไปตรวจร้านเดิมซ้ำ */
+function storesInspectedToday(){
+  const today = dayKeyOf(new Date());
+  const set = new Set();
+  INSPECTION_HISTORY.forEach(h=>{ if (dayKeyOf(h.date) === today) set.add(normalizeStoreId(h.storeId)); });
+  return set;
+}
+
+function renderStorePickerList(){
+  const list = document.getElementById('storeSearchList');
+  const input = document.getElementById('storeSearchInput');
+  if (!list || !input) return;
+
+  if (!TENANTS.length){
+    StorePicker.results = [];
+    list.innerHTML = `<div class="sp-empty">ยังไม่มีร้านค้าในระบบ<br>กรุณาให้ผู้ดูแลระบบเพิ่มหรือนำเข้ารายชื่อร้านค้าก่อน<br>หรือกด "🔄 ซิงก์ใหม่" ถ้าเพิ่งเพิ่มร้านจากเครื่องอื่น</div>`;
+    return;
+  }
+
+  const { results, total, closedMatches, truncated, rawTokens } = searchStores(input.value);
+  StorePicker.results = results;
+  if (StorePicker.activeIndex >= results.length) StorePicker.activeIndex = results.length - 1;
+  if (results.length && StorePicker.activeIndex < 0 && rawTokens.length) StorePicker.activeIndex = 0;
+
+  if (!results.length){
+    list.innerHTML = `<div class="sp-empty">ไม่พบร้านค้าที่ตรงกับ "<b>${escapeHtml(input.value.trim())}</b>"
+      ${closedMatches ? `<br>พบ ${numFmt(closedMatches)} ร้านที่สถานะ <b>ปิดร้าน (Closed)</b> ซึ่งไม่สามารถเลือกตรวจได้` : ''}
+      <br><span style="font-size:12px;">ลองพิมพ์สั้นลง เช่น บางส่วนของชื่อร้าน หรือเฉพาะตัวเลขของรหัสร้าน</span></div>`;
+    input.removeAttribute('aria-activedescendant');
+    return;
+  }
+
+  const doneToday = storesInspectedToday();
+  const current = State.draft ? normalizeStoreId(State.draft.storeId) : '';
+  list.innerHTML = results.map((t, i)=>{
+    const key = normalizeStoreId(t.storeId);
+    const meta = [t.zone, t.floor, t.type].filter(v=> v && v !== '-').map(escapeHtml).join(' · ');
+    const cls = ['sp-item', i === StorePicker.activeIndex ? 'is-active' : '', key === current ? 'is-current' : ''].join(' ');
+    return `<div class="${cls}" role="option" id="sp-opt-${i}" data-idx="${i}" aria-selected="${i === StorePicker.activeIndex}">
+      <span class="sp-id">${highlightMatch(t.storeId, rawTokens)}</span>
+      <span class="sp-main">
+        <span class="sp-name" style="display:block;">${highlightMatch(t.name || '(ไม่มีชื่อร้าน)', rawTokens)}</span>
+        ${meta ? `<span class="sp-meta" style="display:block;">${meta}</span>` : ''}
+      </span>
+      ${doneToday.has(key) ? '<span class="sp-badge" title="ร้านนี้มีผลตรวจลงวันที่วันนี้แล้ว">✓ ตรวจแล้ววันนี้</span>' : ''}
+    </div>`;
+  }).join('') +
+  ((truncated || closedMatches) ? `<div class="sp-note">
+      ${truncated ? `แสดง ${numFmt(results.length)} จาก ${numFmt(total)} ร้าน — พิมพ์เพิ่มเพื่อกรองให้แคบลง` : ''}
+      ${truncated && closedMatches ? '<br>' : ''}
+      ${closedMatches ? `ไม่แสดง ${numFmt(closedMatches)} ร้านที่สถานะปิดร้าน (Closed)` : ''}
+    </div>` : '');
+
+  if (StorePicker.activeIndex > -1) input.setAttribute('aria-activedescendant', 'sp-opt-' + StorePicker.activeIndex);
+  else input.removeAttribute('aria-activedescendant');
+}
+
+function openStorePicker(){
+  const list = document.getElementById('storeSearchList');
+  const input = document.getElementById('storeSearchInput');
+  if (!list || !input) return;
+  StorePicker.open = true;
+  list.classList.remove('js-hidden');
+  input.setAttribute('aria-expanded', 'true');
+  renderStorePickerList();
+}
+function closeStorePicker(){
+  const list = document.getElementById('storeSearchList');
+  const input = document.getElementById('storeSearchInput');
+  StorePicker.open = false;
+  StorePicker.activeIndex = -1;
+  clearTimeout(StorePicker.blurTimer);
+  if (list){ list.classList.add('js-hidden'); list.innerHTML = ''; }
+  if (input){ input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant'); }
+}
+
+/* แสดงร้านที่เลือกอยู่ในช่องค้นหา + ตัวนับร้าน — เรียกทุกครั้งที่สถานะการเลือกร้านเปลี่ยน */
+function syncStorePickerDisplay(){
+  const input = document.getElementById('storeSearchInput');
+  const clearBtn = document.getElementById('storeSearchClear');
+  const status = document.getElementById('storePickerStatus');
+  const countEl = document.getElementById('storePickerCount');
+  if (!input) return;
+
+  const activeCount = TENANTS.filter(isTenantActive).length;
+  if (countEl) countEl.textContent = TENANTS.length ? `ร้านที่เปิดดำเนินการ ${numFmt(activeCount)} ร้าน` : '';
+
+  const t = State.draft ? findTenant(State.draft.storeId) : null;
+  const label = State.draft ? (t ? `${t.storeId} — ${t.name}` : State.draft.storeId) : '';
+  if (!StorePicker.open || document.activeElement !== input){
+    input.value = label;
+  }
+  input.placeholder = label
+    ? `ร้านปัจจุบัน: ${label} (พิมพ์เพื่อค้นหาร้านอื่น)`
+    : 'พิมพ์ชื่อร้าน / รหัสร้าน / โซน / ชั้น เพื่อค้นหา';
+  input.classList.toggle('has-value', !!label);
+  if (clearBtn) clearBtn.classList.toggle('js-hidden', !label);
+  if (status){
+    status.innerHTML = label ? '' : (TENANTS.length
+      ? '💡 แตะช่องค้นหาเพื่อดูรายชื่อร้านทั้งหมด หรือพิมพ์บางส่วนของชื่อ/รหัสร้าน · ใช้ปุ่มลูกศร ↑ ↓ และ Enter ได้'
+      : '⚠️ ยังไม่มีร้านค้าในระบบ — กรุณาเพิ่ม/นำเข้าร้านค้าที่เมนู "ข้อมูลร้านค้า" (ผู้ดูแลระบบ)');
+  }
+}
+
+/* ฟอร์มปัจจุบันมีข้อมูลที่กรอกไว้แล้วหรือยัง (รวมลายเซ็น) — ใช้ตัดสินว่าควรถามก่อนล้างไหม */
+function currentFormHasContent(){
+  if (!State.draft) return false;
+  let signed = false;
+  try { signed = !!((State.sigPadInspector && !State.sigPadInspector.isEmpty()) || (State.sigPadStore && !State.sigPadStore.isEmpty())); }
+  catch(err){ signed = false; }
+  return signed || draftHasContent({
+    checks: State.draft.checks, photos: State.photos,
+    notes: (document.getElementById('noteText') || {}).value || ''
+  });
+}
+
+/* ถามยืนยันก่อนทิ้งฟอร์มที่กรอกค้าง — คืน Promise<boolean> */
+function confirmDiscardCurrentForm(nextLabel){
+  if (!currentFormHasContent()) return Promise.resolve(true);
+  const cur = findTenant(State.draft.storeId);
+  return Swal.fire({
+    icon:'warning', title:'ล้างฟอร์มที่กรอกค้างไว้?',
+    html:`ฟอร์มของร้าน <b>${escapeHtml(cur ? cur.name : State.draft.storeId)}</b> มีข้อมูลที่กรอกไว้แล้ว
+          (ผลตรวจ รูปหลักฐาน หรือลายเซ็น)<br>${nextLabel ? `ถ้า${escapeHtml(nextLabel)} ` : ''}ข้อมูลทั้งหมดของร้านนี้จะถูกล้างและกู้คืนไม่ได้`,
+    showCancelButton:true, confirmButtonText:'ล้างและดำเนินการต่อ', cancelButtonText:'กลับไปกรอกต่อ',
+    confirmButtonColor:'#EF4444', reverseButtons:true
+  }).then(res=> !!(res && res.isConfirmed)).catch(()=> false);
+}
+
+function chooseStoreFromPicker(storeId){
+  const tenant = findTenant(storeId);
+  const input = document.getElementById('storeSearchInput');
+  if (!tenant){ showToast('ไม่พบร้านค้านี้ในระบบแล้ว (อาจถูกลบระหว่างซิงก์) กรุณาค้นหาใหม่', 'error'); renderStorePickerList(); return; }
+
+  // เลือกร้านเดิมซ้ำ = แค่ปิดรายการ ห้ามสร้างฟอร์มใหม่ทับของที่กรอกไว้
+  if (State.draft && normalizeStoreId(State.draft.storeId) === normalizeStoreId(tenant.storeId)){
+    closeStorePicker(); syncStorePickerDisplay(); if (input) input.blur();
+    return;
+  }
+  closeStorePicker();
+  if (input) input.blur();
+  confirmDiscardCurrentForm(`เปลี่ยนไปตรวจร้าน "${tenant.name}"`).then(ok=>{
+    if (!ok){ syncStorePickerDisplay(); return; }
+    const sel = document.getElementById('storeSelect');
+    ensureStoreOption(tenant);
+    if (sel) sel.value = tenant.storeId;
+    selectStore(tenant.storeId);
+    if (State.draft && State.draft.storeId){
+      showToast(`เลือกร้าน ${tenant.name} แล้ว — เริ่มประเมินได้เลย`, 'success');
+      // เลื่อนลงไปที่ข้อมูลร้าน/เช็คลิสต์ให้ทันที ไม่ต้องปัดเอง (สำคัญบนมือถือ)
+      const card = document.getElementById('storeInfoCard');
+      if (card && card.scrollIntoView) setTimeout(()=> card.scrollIntoView({ behavior:'smooth', block:'start' }), 120);
+    }
+  });
+}
+
+function clearStoreSelection(){
+  confirmDiscardCurrentForm('ล้างการเลือกร้าน').then(ok=>{
+    if (!ok) return;
+    const sel = document.getElementById('storeSelect');
+    if (sel) sel.value = '';
+    selectStore('');
+    clearDraft();
+    const input = document.getElementById('storeSearchInput');
+    if (input){ input.value = ''; input.focus(); }
+  });
+}
+
+function setupStorePicker(){
+  if (StorePicker.bound) return;
+  const input = document.getElementById('storeSearchInput');
+  const list = document.getElementById('storeSearchList');
+  const clearBtn = document.getElementById('storeSearchClear');
+  if (!input || !list) return;
+  StorePicker.bound = true;
+
+  input.addEventListener('focus', ()=>{
+    clearTimeout(StorePicker.blurTimer);
+    // มีร้านเลือกอยู่แล้ว: ล้างข้อความในช่องให้พร้อมพิมพ์ค้นหาร้านใหม่ (ร้านเดิมยังโชว์ใน placeholder)
+    if (input.classList.contains('has-value')) input.value = '';
+    StorePicker.activeIndex = -1;
+    openStorePicker();
+    // มือถือ: เลื่อนช่องค้นหาขึ้นไปใกล้หัวจอ ไม่ให้แป้นพิมพ์บังรายการผลลัพธ์
+    if (window.innerWidth < 768){
+      setTimeout(()=>{ try { document.getElementById('storePicker').scrollIntoView({ behavior:'smooth', block:'start' }); } catch(e){} }, 250);
+    }
+  });
+  input.addEventListener('input', ()=>{
+    StorePicker.activeIndex = -1;
+    if (!StorePicker.open) openStorePicker(); else renderStorePickerList();
+  });
+  input.addEventListener('keydown', e=>{
+    if (e.isComposing || e.keyCode === 229) return;   // กำลังประกอบตัวอักษรจากแป้นพิมพ์ภาษา (IME) — ยังไม่ใช่การกดจริง
+    const n = StorePicker.results.length;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+      e.preventDefault();
+      if (!StorePicker.open){ openStorePicker(); return; }
+      if (!n) return;
+      StorePicker.activeIndex = e.key === 'ArrowDown'
+        ? (StorePicker.activeIndex + 1) % n
+        : (StorePicker.activeIndex <= 0 ? n - 1 : StorePicker.activeIndex - 1);
+      renderStorePickerList();
+      const el = document.getElementById('sp-opt-' + StorePicker.activeIndex);
+      if (el && el.scrollIntoView) el.scrollIntoView({ block:'nearest' });
+    } else if (e.key === 'Enter'){
+      e.preventDefault();
+      const idx = StorePicker.activeIndex > -1 ? StorePicker.activeIndex : (n === 1 ? 0 : -1);
+      if (idx > -1 && StorePicker.results[idx]) chooseStoreFromPicker(StorePicker.results[idx].storeId);
+      else if (n > 1) showToast(`พบ ${numFmt(n)} ร้าน กรุณาเลือกจากรายการ หรือพิมพ์ให้เจาะจงขึ้น`, 'info');
+    } else if (e.key === 'Escape'){
+      closeStorePicker(); syncStorePickerDisplay(); input.blur();
+    }
+  });
+  // ปิดรายการเมื่อโฟกัสหลุด — หน่วงไว้ให้ click บนรายการทำงานเสร็จก่อน (มือถือยิง blur ก่อน click)
+  input.addEventListener('blur', ()=>{
+    clearTimeout(StorePicker.blurTimer);
+    StorePicker.blurTimer = setTimeout(()=>{ closeStorePicker(); syncStorePickerDisplay(); }, 200);
+  });
+
+  // mousedown + preventDefault = คลิกรายการโดยไม่ทำให้ช่องค้นหาเสียโฟกัส (เดสก์ท็อป)
+  list.addEventListener('mousedown', e=> e.preventDefault());
+  list.addEventListener('click', e=>{
+    const item = e.target.closest ? e.target.closest('.sp-item') : null;
+    if (!item) return;
+    const t = StorePicker.results[Number(item.dataset.idx)];
+    if (t) chooseStoreFromPicker(t.storeId);
+  });
+  if (clearBtn){
+    clearBtn.addEventListener('mousedown', e=> e.preventDefault());
+    clearBtn.addEventListener('click', clearStoreSelection);
+  }
+  // แตะที่อื่นนอกกล่องค้นหา = ปิดรายการ (กรณีโฟกัสไม่ได้อยู่ที่ช่อง เช่น แตะแถบเลื่อนของรายการ)
+  document.addEventListener('click', e=>{
+    if (!StorePicker.open) return;
+    if (e.target.closest && e.target.closest('#storePicker')) return;
+    closeStorePicker(); syncStorePickerDisplay();
+  });
+  syncStorePickerDisplay();
 }
 
 function setupInspectionTypeButtons(){
@@ -3517,10 +4262,18 @@ function setupInspectionTypeButtons(){
     btn.addEventListener('click', ()=>{
       document.querySelectorAll('.insp-type-btn').forEach(b=>b.classList.remove('pass-on'));
       btn.classList.add('pass-on');
-      if (State.draft) State.draft.type = btn.dataset.type;
+      if (State.draft){ State.draft.type = btn.dataset.type; saveDraftSoon(); }
     });
   });
-  document.querySelector('.insp-type-btn[data-type="weekly"]').classList.add('pass-on');
+  setInspectionTypeUI('weekly');
+}
+
+/* ตั้งปุ่มประเภทการตรวจให้ตรงกับค่าจริง (ใช้ตอนกู้คืนร่าง) — คืนค่าที่ผ่านการตรวจแล้ว */
+function setInspectionTypeUI(type){
+  const valid = ['weekly', 'preopening', 'incident'];
+  const t = valid.indexOf(type) > -1 ? type : 'weekly';
+  document.querySelectorAll('.insp-type-btn').forEach(b=> b.classList.toggle('pass-on', b.dataset.type === t));
+  return t;
 }
 
 function getSelectedInspectionType(){
@@ -3534,6 +4287,9 @@ function selectStore(storeId){
     document.getElementById('checklistWrap').classList.add('js-hidden');
     document.getElementById('evidenceWrap').classList.add('js-hidden');
     State.draft = null;
+    State.photos = [];
+    document.getElementById('photoGallery').innerHTML = '';
+    syncStorePickerDisplay();
     return;
   }
   // เทียบแบบ normalize (ตัดช่องว่าง/ไม่สนตัวพิมพ์) เหมือนจุดอื่นในระบบ
@@ -3586,6 +4342,7 @@ function selectStore(storeId){
   document.getElementById('checklistWrap').classList.remove('js-hidden');
   document.getElementById('evidenceWrap').classList.remove('js-hidden');
   resetSignatures();
+  syncStorePickerDisplay();
 }
 
 /* ---------- ข้อมูลผู้ติดต่อ ณ วันที่เข้าตรวจ ----------
@@ -3613,6 +4370,7 @@ function saveContactToTenant(){
 
   TENANTS[idx] = Object.assign({}, TENANTS[idx], { contact, phone });
   persistTenants();
+  queueTenantSave(TENANTS[idx]);   // v16: จดไว้จนกว่าจะยืนยันได้ว่าขึ้น Sheets แล้ว
   postTenantToBackend('saveTenant', TENANTS[idx]);
   try { renderTenantsTable(); } catch(err){ console.error('renderTenantsTable error:', err); }
   showToast('อัปเดตข้อมูลผู้ติดต่อเข้าข้อมูลหลักร้านค้าแล้ว', 'success');
@@ -3811,13 +4569,22 @@ function openCamera(){
     return;
   }
 
+  // กันเปิดซ้อน (แตะปุ่มรัว) — เดิมจะได้สตรีมกล้อง 2 ตัว แล้วตัวแรกค้างทำงานตลอด
+  if (State.cameraStream || !document.getElementById('cameraModal').classList.contains('js-hidden')) return;
+  if (!State.draft){ showToast('กรุณาเลือกร้านค้าก่อนถ่ายภาพหลักฐาน', 'error'); return; }
+  if (State.photos.length >= MAX_PHOTOS){ showToast(`แนบรูปได้สูงสุด ${MAX_PHOTOS} รูปต่อการตรวจ 1 ครั้ง`, 'error'); return; }
+
   idlePaused = true; // กันจอล็อกอัตโนมัติขัดจังหวะระหว่างกำลังถ่ายรูป
   clearTimeout(idleTimer);
   document.getElementById('cameraModal').classList.remove('js-hidden');
   setCaptureButtonReady(false);   // ยังกดถ่ายไม่ได้จนกว่ากล้องจะส่งภาพจริงออกมา
+  const session = ++cameraSession;
 
   navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } })
     .then(stream=>{
+      // ผู้ใช้กดปิดไปแล้วระหว่างรอขออนุญาตกล้อง (หรือจอพักไปแล้ว) — ต้องปิดสตรีมทิ้งทันที
+      // ไม่งั้นกล้องจะทำงานค้างเบื้องหลัง ไฟกล้องติด กินแบต และละเมิดความเป็นส่วนตัว
+      if (session !== cameraSession){ stream.getTracks().forEach(t=> t.stop()); return; }
       State.cameraStream = stream;
       const video = document.getElementById('cameraVideo');
       video.srcObject = stream;
@@ -3828,6 +4595,7 @@ function openCamera(){
       setTimeout(()=>{ if (video.videoWidth > 0) setCaptureButtonReady(true); }, 1500);
     })
     .catch(err=>{
+      if (session !== cameraSession) return;   // ปิดไปแล้ว ไม่ต้องแจ้ง error ซ้ำ
       const name = err && err.name;
       const msg = name === 'NotAllowedError'  ? 'คุณปฏิเสธสิทธิ์การใช้กล้อง กรุณาอนุญาตในการตั้งค่าเบราว์เซอร์แล้วลองใหม่'
                 : name === 'NotFoundError'    ? 'ไม่พบกล้องบนอุปกรณ์นี้'
@@ -3846,9 +4614,13 @@ function setCaptureButtonReady(ready){
   btn.style.opacity = ready ? '1' : '.55';
   btn.innerHTML = ready ? '📸 ถ่ายภาพ' : '<span class="spinner"></span> กำลังเปิดกล้อง...';
 }
+let cameraSession = 0;   // เลขรอบการเปิดกล้อง — ใช้ตัดสตรีมที่มาถึงช้ากว่าการกดปิด
 function closeCamera(){
+  cameraSession++;
   document.getElementById('cameraModal').classList.add('js-hidden');
   if (State.cameraStream){ State.cameraStream.getTracks().forEach(t=>t.stop()); State.cameraStream=null; }
+  const video = document.getElementById('cameraVideo');
+  if (video) video.srcObject = null;
   idlePaused = false;
   resetIdleTimer();
 }
@@ -3880,7 +4652,18 @@ function capturePhoto(){
 
 /* ---------- อัปโหลดรูปจากเครื่อง ---------- */
 function handleFileUpload(evt){
-  Array.from(evt.target.files).forEach(file=>{
+  const input = evt.target;
+  let files = Array.from(input.files || []);
+  input.value = '';   // รีเซ็ตทันที ให้เลือกไฟล์เดิมซ้ำได้ (และแม้โค้ดด้านล่างจะ error)
+  if (!State.draft){ showToast('กรุณาเลือกร้านค้าก่อนแนบรูปหลักฐาน', 'error'); return; }
+  // เลือกหลายไฟล์พร้อมกัน: ตัดส่วนเกินโควตาตั้งแต่ต้น แจ้งครั้งเดียว (เดิมเด้งแจ้งเตือนรัวทีละไฟล์)
+  const room = MAX_PHOTOS - State.photos.length;
+  if (room <= 0){ showToast(`แนบรูปได้สูงสุด ${MAX_PHOTOS} รูปต่อการตรวจ 1 ครั้ง`, 'error'); return; }
+  if (files.length > room){
+    showToast(`เลือกมา ${files.length} รูป แต่แนบได้อีก ${room} รูป — ระบบจะใช้ ${room} รูปแรก`, 'warning');
+    files = files.slice(0, room);
+  }
+  files.forEach(file=>{
     if (!file.type || !file.type.startsWith('image/')){
       showToast(`ไฟล์ "${file.name}" ไม่ใช่ไฟล์รูปภาพ ข้ามไฟล์นี้`, 'error');
       return;
@@ -3890,7 +4673,6 @@ function handleFileUpload(evt){
     reader.onerror = () => showToast(`อ่านไฟล์ "${file.name}" ไม่สำเร็จ (ไฟล์อาจเสียหาย)`, 'error');
     reader.readAsDataURL(file);
   });
-  evt.target.value = '';
 }
 
 // บีบอัดภาพฝั่ง client ด้วย canvas (ลดขนาด ≤ 800px, quality 0.7) ก่อนแนบไป Apps Script
@@ -3906,6 +4688,9 @@ function compressAndAddPhoto(dataUrl, filename){
     showToast(`แนบรูปได้สูงสุด ${MAX_PHOTOS} รูปต่อการตรวจ 1 ครั้ง`, 'error');
     return;
   }
+  // จำไว้ว่ารูปนี้เป็นของฟอร์มไหน — รูปใหญ่ใช้เวลาย่อขนาดนาน ถ้าระหว่างนั้นผู้ใช้เปลี่ยนร้าน
+  // หรือบันทึกผลไปแล้ว รูปจะไปโผล่ในฟอร์มของร้านถัดไป (หลักฐานผิดร้าน = เอกสารใช้อ้างอิงไม่ได้)
+  const owner = State.draft;
   const img = new Image();
   img.onerror = () => showToast(`ไฟล์${filename ? ' "' + filename + '"' : ''} ไม่ใช่รูปภาพที่ใช้งานได้ (เปิดไม่ขึ้น)`, 'error');
   img.onload = ()=>{
@@ -3920,6 +4705,11 @@ function compressAndAddPhoto(dataUrl, filename){
     canvas.width = width; canvas.height = height;
     canvas.getContext('2d').drawImage(img, 0, 0, width, height);
       const compressed = canvas.toDataURL('image/jpeg', 0.7);
+      if (!owner || State.draft !== owner) return;              // ฟอร์มเปลี่ยนไปแล้ว ทิ้งรูปนี้
+      if (!compressed || compressed.length < 100){ showToast('ประมวลผลรูปไม่สำเร็จ (ได้ภาพว่าง) กรุณาลองใหม่', 'error'); return; }
+      if (State.photos.length >= MAX_PHOTOS){                   // เช็คซ้ำ — รูปหลายใบย่อขนาดเสร็จพร้อมกัน
+        showToast(`แนบรูปได้สูงสุด ${MAX_PHOTOS} รูปต่อการตรวจ 1 ครั้ง`, 'error'); return;
+      }
       State.photos.push(compressed);
       renderPhotoGallery();
     } catch(err){
@@ -3938,7 +4728,10 @@ function renderPhotoGallery(){
       <button onclick="removePhoto(${i})" class="absolute top-1 right-1 bg-black/60 text-white rounded-full w-6 h-6 text-xs">✕</button>
     </div>`).join('');
 }
-function removePhoto(i){ State.photos.splice(i,1); renderPhotoGallery(); }
+function removePhoto(i){
+  if (!Number.isInteger(i) || i < 0 || i >= State.photos.length) return;
+  State.photos.splice(i,1); renderPhotoGallery();
+}
 
 /* ---------- ลายเซ็นดิจิทัล (Signature Pad) ---------- */
 function resetSignatures(retryCount){
@@ -4088,8 +4881,11 @@ function openSubmitPreview(){
 
   // เตือนถ้าร้านนี้ถูกตรวจไปแล้วในวันเดียวกัน — กันบันทึกซ้ำจากการกดผิดหรือเปิดค้างไว้สองแท็บ
   // ไม่บล็อกตายตัว เพราะบางกรณีต้องตรวจซ้ำจริง (เช่น ตรวจติดตามผลการแก้ไขในวันเดียวกัน)
+  // v16: เทียบด้วยคีย์วันแบบ ค.ศ. แทนการเทียบข้อความตรงๆ — รายการที่ดึงจาก Sheets อาจเก็บวันที่
+  // คนละรูปแบบกับที่เครื่องนี้สร้าง (เช่น ค.ศ. หรือ Date) แล้วระบบจะจับรายการซ้ำไม่ได้เลย
+  const todayKey = dayKeyOf(now);
   const dup = INSPECTION_HISTORY.find(h=>
-    normalizeStoreId(h.storeId) === normalizeStoreId(State.draft.storeId) && h.date === todayStr);
+    normalizeStoreId(h.storeId) === normalizeStoreId(State.draft.storeId) && dayKeyOf(h.date) === todayKey);
   if (dup && !State.duplicateAcknowledged){
     Swal.fire({
       icon:'question', title:'ร้านนี้ถูกตรวจไปแล้ววันนี้',
@@ -4104,7 +4900,9 @@ function openSubmitPreview(){
   }
 
   const record = {
-    id: 'INS-' + State.draft.storeId + '-' + Date.now(),
+    // ต่อท้ายด้วยตัวสุ่มสั้นๆ กัน id ชนกันเมื่อ 2 เครื่องบันทึกร้านเดียวกันในมิลลิวินาทีเดียวกัน
+    // (id ชน = Code.gs เขียนทับแถวของอีกคนเงียบๆ เพราะใช้ id เป็นกุญแจ upsert)
+    id: 'INS-' + String(State.draft.storeId).replace(/\s+/g, '') + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
     storeId: State.draft.storeId,
     date: todayStr,   // คำนวณไว้ด้านบนแล้ว ใช้ค่าเดียวกับที่ใช้ตรวจรายการซ้ำ เพื่อไม่ให้เพี้ยนถ้าเที่ยงคืนผ่านไประหว่างกรอก
     type: State.draft.type,
@@ -4144,63 +4942,92 @@ async function finalizeSubmit(){
   const btn = document.getElementById('confirmSubmitBtn');
   if (btn){ btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> กำลังบันทึกและยืนยันกับ Google Sheets...'; }
 
-  // เก็บลงเครื่องก่อนเสมอ (กันข้อมูลหายถ้าปิดแท็บระหว่างรอยืนยัน) แล้วค่อยยืนยันผลกับ Sheets
-  record.synced = false;
-  INSPECTION_HISTORY.unshift(record);
-  persistHistory();
-  safeRefreshUI();
-
-  let result = { ok:false };
+  /* v16: ห่อทั้งขั้นตอนด้วย try/finally
+     เดิมถ้าขั้นใดขั้นหนึ่ง throw (เช่น Swal ไม่ได้โหลด / DOM ถูกเปลี่ยน) บรรทัดท้ายฟังก์ชันจะไม่ถูกเรียก
+     State.submitting ค้างเป็น true -> กดบันทึกร้านถัดไปไม่ได้อีกเลย และหน้าพักจอหยุดทำงานถาวร */
+  let savedLocally = false;
   try {
-    result = await submitInspectionVerified(record);
+    // เก็บลงเครื่องก่อนเสมอ (กันข้อมูลหายถ้าปิดแท็บระหว่างรอยืนยัน) แล้วค่อยยืนยันผลกับ Sheets
+    record.synced = false;
+    if (!INSPECTION_HISTORY.some(h=> h.id === record.id)) INSPECTION_HISTORY.unshift(record);
+    persistHistory();
+    savedLocally = true;
+    safeRefreshUI();
+
+    let result = { ok:false };
+    try {
+      result = await submitInspectionVerified(record);
+    } catch(err){
+      console.error('finalizeSubmit error:', err);
+    }
+
+    persistHistory(); // บันทึกซ้ำหลังรู้สถานะ synced จริง (ถ้าสำเร็จ จะตัด base64 ออกจากเครื่องให้อัตโนมัติ)
+    safeRefreshUI();
+    closeReportPreview();
+
+    if (record.grade === 'major') notifyMajorDefect(record, tenant, result.ok);
+
+    const storeName = escapeHtml(tenant.name || record.storeId);
+    if (result.ok && !result.photosIncomplete){
+      showToast('บันทึกและยืนยันขึ้น Google Sheets สำเร็จ', 'success');
+      Swal.fire({
+        icon: record.grade==='major' ? 'error' : (record.grade==='minor' ? 'warning' : 'success'),
+        title: '✅ บันทึกขึ้น Google Sheets แล้ว',
+        html: `ร้าน <b>${storeName}</b><br>ผลการตรวจ: <b style="color:${gradeMeta(record.grade).color}">${gradeMeta(record.grade).label}</b><br>คะแนน: <b>${record.score}</b>/100`,
+        confirmButtonColor:'#C9971B'
+      });
+    } else if (result.ok && result.photosIncomplete){
+      Swal.fire({
+        icon:'warning', title:'บันทึกแล้ว แต่รูปหลักฐานขึ้น Drive ไม่ครบ',
+        html:`ร้าน <b>${storeName}</b> · คะแนน <b>${record.score}</b>/100<br><br>
+              ผลตรวจขึ้น Google Sheets แล้ว แต่รูปหลักฐานอัปโหลดได้ ${result.info ? result.info.photoCount : 0}/${result.expectedPhotos} รูป<br>
+              <b>รูปทุกใบยังเก็บสำรองไว้ในเครื่องนี้</b> ใช้พิมพ์ใบรายงานได้ตามปกติ<br>
+              <span style="font-size:12.5px;color:var(--text-muted);">แนะนำให้แจ้งผู้ดูแลระบบตรวจสอบโฟลเดอร์ Google Drive</span>`,
+        confirmButtonColor:'#F59E0B'
+      });
+    } else {
+      // บอกความจริง: ข้อมูลอยู่ในเครื่องแล้ว แต่ยังยืนยันไม่ได้ว่าขึ้น Sheets
+      Swal.fire({
+        icon: 'warning',
+        title: '⚠️ บันทึกในเครื่องแล้ว แต่ยังไม่ขึ้น Google Sheets',
+        html: `ร้าน <b>${storeName}</b> · คะแนน <b>${record.score}</b>/100<br><br>
+               ข้อมูลถูกเก็บไว้ในเครื่องเรียบร้อยแล้ว <b>ยังไม่สูญหาย</b><br>
+               ${result.photosIncomplete ? 'ผลตรวจขึ้น Sheets แล้วแต่รูปหลักฐานยังขึ้นไม่ครบ ระบบจะส่งซ้ำให้อัตโนมัติ<br>'
+                 : 'แต่ระบบยังยืนยันไม่ได้ว่าขึ้น Google Sheets สำเร็จ<br>'}
+               <span style="color:#EF4444;">กรุณาอย่าล้างข้อมูลเบราว์เซอร์ก่อนส่งซ้ำสำเร็จ</span><br><br>
+               ระบบจะส่งซ้ำอัตโนมัติเมื่อเชื่อมต่อได้ หรือกด "ส่งข้อมูลค้าง" ในหน้ารายงาน/ประวัติ`,
+        confirmButtonColor:'#F59E0B'
+      });
+    }
+    resetInspectionForm();
   } catch(err){
-    console.error('finalizeSubmit error:', err);
+    console.error('finalizeSubmit fatal:', err);
+    if (savedLocally){
+      // ผลตรวจอยู่ในประวัติเครื่องแล้ว — ล้างฟอร์มได้ ไม่งั้นผู้ใช้จะกดบันทึกซ้ำจนได้สองรายการ
+      try { closeReportPreview(); resetInspectionForm(); } catch(e2){ console.error(e2); }
+      showToast('บันทึกผลตรวจลงเครื่องแล้ว แต่เกิดข้อผิดพลาดระหว่างส่งข้อมูล — ระบบจะส่งซ้ำให้อัตโนมัติ', 'warning');
+    } else {
+      showToast('บันทึกไม่สำเร็จ: ' + String(err && err.message || err).slice(0, 120) + ' — ข้อมูลในฟอร์มยังอยู่ กรุณาลองกดยืนยันอีกครั้ง', 'error');
+    }
+  } finally {
+    if (btn && document.body.contains(btn)){ btn.disabled = false; btn.innerHTML = '✅ ยืนยันบันทึกผล'; }
+    State.submitting = false;
+    idlePaused = false;
+    try { updateOnlineIndicator(); } catch(e){ /* ไม่สำคัญ */ }
+    resetIdleTimer();
   }
+}
 
-  persistHistory(); // บันทึกซ้ำหลังรู้สถานะ synced จริง (ถ้าสำเร็จ จะตัด base64 ออกจากเครื่องให้อัตโนมัติ)
-  safeRefreshUI();
-  closeReportPreview();
-
-  if (record.grade === 'major'){
-    // แจ้งเตือนอัตโนมัติทันทีเมื่อพบ Major Defect (ไม่ต้องรอ batch)
-    sendMajorDefectAlert(record, tenant);
-  }
-
-  if (result.ok){
-    showToast('บันทึกและยืนยันขึ้น Google Sheets สำเร็จ', 'success');
-    Swal.fire({
-      icon: record.grade==='major' ? 'error' : (record.grade==='minor' ? 'warning' : 'success'),
-      title: '✅ บันทึกขึ้น Google Sheets แล้ว',
-      html: `ร้าน <b>${escapeHtml(tenant.name || record.storeId)}</b><br>ผลการตรวจ: <b style="color:${gradeMeta(record.grade).color}">${gradeMeta(record.grade).label}</b><br>คะแนน: <b>${record.score}</b>/100`,
-      confirmButtonColor:'#C9971B'
-    });
-  } else {
-    // บอกความจริง: ข้อมูลอยู่ในเครื่องแล้ว แต่ยังยืนยันไม่ได้ว่าขึ้น Sheets
-    Swal.fire({
-      icon: 'warning',
-      title: '⚠️ บันทึกในเครื่องแล้ว แต่ยังไม่ขึ้น Google Sheets',
-      html: `ร้าน <b>${escapeHtml(tenant.name || record.storeId)}</b> · คะแนน <b>${record.score}</b>/100<br><br>
-             ข้อมูลถูกเก็บไว้ในเครื่องเรียบร้อยแล้ว <b>ยังไม่สูญหาย</b><br>
-             แต่ระบบยังยืนยันไม่ได้ว่าขึ้น Google Sheets สำเร็จ<br>
-             <span style="color:#EF4444;">กรุณาอย่าล้างข้อมูลเบราว์เซอร์ก่อนส่งซ้ำสำเร็จ</span><br><br>
-             กดปุ่ม "ส่งข้อมูลค้าง" ในหน้ารายงาน/ประวัติ เพื่อลองส่งใหม่เมื่อเชื่อมต่อได้`,
-      confirmButtonColor:'#F59E0B'
-    });
-  }
-
-  // เคลียร์ฟอร์มเพื่อตรวจร้านถัดไป
-  document.getElementById('storeSelect').value = '';
+/* ล้างฟอร์มเพื่อตรวจร้านถัดไป (ใช้หลังบันทึกผลสำเร็จ) */
+function resetInspectionForm(){
+  const sel = document.getElementById('storeSelect');
+  if (sel) sel.value = '';
   selectStore('');
-  document.getElementById('noteText').value = '';
-  document.getElementById('deadlineInput').value = '';
+  const note = document.getElementById('noteText'); if (note) note.value = '';
+  const dl = document.getElementById('deadlineInput'); if (dl) dl.value = '';
   restoreInspectorName();   // ชื่อผู้ตรวจคงไว้ เพราะคนเดิมมักตรวจต่ออีกหลายร้านในรอบเดียว
   State.pendingRecord = null;
-  clearDraft();               // บันทึกสำเร็จแล้ว ร่างที่ค้างไว้ไม่จำเป็นอีก
-  updateOnlineIndicator();
-  if (btn){ btn.disabled = false; btn.innerHTML = '✅ ยืนยันบันทึกผล'; }
-  State.submitting = false;
-  idlePaused = false;
-  resetIdleTimer();
+  clearDraft();             // บันทึกแล้ว ร่างที่ค้างไว้ไม่จำเป็นอีก
 }
 
 /* ---------- เชื่อมต่อ Google Apps Script Backend ---------- */
@@ -4309,19 +5136,57 @@ async function verifyInspectionWithRetry(id, expectedPhotoCount){
  * บันทึกผลตรวจแบบยืนยันผลจริง: POST -> ถามยืนยัน -> ตั้งสถานะ synced ตามความจริง
  * ถ้ายืนยันไม่ได้ จะเก็บรายการไว้ในคิวเพื่อส่งซ้ำ และแจ้งผู้ใช้ตรงๆ ว่ายังไม่ขึ้น Sheets
  */
-async function submitInspectionVerified(record){
+/* v16: ป้องกันการส่งรายการเดียวกันซ้อนกัน
+   เดิมมี 3 ทางที่เรียกส่งซ้ำได้พร้อมกัน (ปุ่ม "ส่งข้อมูลค้าง", event online, หลังซิงก์สำเร็จ)
+   ถ้ายิงพร้อมกัน Code.gs จะอัปโหลดรูปชุดเดิมขึ้น Drive ซ้ำ 2-3 ชุด และแข่งกันเขียนแถวเดียวกัน
+   จึงจำ Promise ของรายการที่กำลังส่งไว้ ใครเรียกซ้ำระหว่างนั้นได้ผลรอบเดียวกันกลับไป
+   ยกเว้นข้อมูลถูกแก้ไขระหว่างส่ง (rev เปลี่ยน) -> รอรอบเดิมจบแล้วส่งฉบับใหม่ต่อคิว */
+const SUBMIT_IN_FLIGHT = new Map();
+const MAX_PHOTO_UPLOAD_ATTEMPTS = 3;
+
+function submitInspectionVerified(record){
+  if (!record || !record.id) return Promise.resolve({ ok:false, info:null });
+  const rev = record.rev || 0;
+  const running = SUBMIT_IN_FLIGHT.get(record.id);
+  if (running){
+    if (running.rev === rev) return running.promise;
+    return running.promise.then(()=> submitInspectionVerified(record), ()=> submitInspectionVerified(record));
+  }
+  const promise = submitInspectionCore(record, rev).finally(()=>{
+    const cur = SUBMIT_IN_FLIGHT.get(record.id);
+    if (cur && cur.promise === promise) SUBMIT_IN_FLIGHT.delete(record.id);
+  });
+  SUBMIT_IN_FLIGHT.set(record.id, { rev, promise });
+  return promise;
+}
+
+async function submitInspectionCore(record, rev){
+  if (!isBackendConfigured()){ record.synced = false; return { ok:false, info:null }; }
   await postToBackend('submitInspection', record);
   const expectedPhotos = (record.photos || []).filter(p=> typeof p==='string' && p.indexOf('data:')===0).length;
   const info = await verifyInspectionWithRetry(record.id, expectedPhotos);
+  const unchanged = (record.rev || 0) === rev;   // ถูกแก้ไขระหว่างรอ -> ที่ขึ้น Sheets คือฉบับเก่า
+
   if (info && info.exists){
+    const photosOk = !expectedPhotos || info.photoCount >= expectedPhotos;
+    record.photosUploaded = photosOk;
+    if (!photosOk){
+      /* รูปขึ้น Drive ไม่ครบ — บั๊กเดิม: ยังตั้ง synced=true แล้ว persistHistory ลบ base64 ในเครื่องทิ้ง
+         รูปที่อัปโหลดไม่สำเร็จจึงหายถาวร ตอนนี้ให้ส่งซ้ำ (Code.gs upsert ด้วย id เดิม ไม่เกิดแถวซ้ำ)
+         แต่จำกัดจำนวนครั้ง กันวนส่งไม่รู้จบกรณีไฟล์รูปเสียจริง แล้วเก็บ base64 ไว้ในเครื่องถาวรเป็นสำรอง */
+      record.uploadAttempts = (record.uploadAttempts || 0) + 1;
+      if (record.uploadAttempts < MAX_PHOTO_UPLOAD_ATTEMPTS){
+        record.synced = false;
+        return { ok:false, info, photosIncomplete:true, expectedPhotos };
+      }
+    }
+    if (!unchanged){ record.synced = false; return { ok:false, info, changedDuringSend:true }; }
     record.synced = true;
     record.syncedAt = new Date().toISOString();
-    // ถ้ารูปขึ้น Drive ครบแล้ว ค่อยอนุญาตให้ทิ้ง base64 ตอน persist (ดู stripHeavyFieldsIfSynced)
-    record.photosUploaded = !expectedPhotos || info.photoCount >= expectedPhotos;
-    return { ok: true, info };
+    return { ok:true, info, photosIncomplete: !photosOk, expectedPhotos };
   }
   record.synced = false;
-  return { ok: false, info: null };
+  return { ok:false, info:null };
 }
 
 /** รายการที่ยังซิงก์ไม่สำเร็จ — ใช้แสดงป้ายเตือนและปุ่มส่งซ้ำ */
@@ -4330,22 +5195,50 @@ function getUnsyncedRecords(){
 }
 
 /** ส่งซ้ำรายการที่ยังไม่ขึ้น Sheets ทั้งหมด (เรียกเองจากปุ่ม หรืออัตโนมัติตอนซิงก์) */
-async function retryUnsyncedRecords(silent){
+let retryRun = null;   // รอบส่งซ้ำที่กำลังทำงาน — กันกดปุ่มซ้ำหรือถูกเรียกพร้อมกันหลายทาง
+function retryUnsyncedRecords(silent){
+  if (retryRun){
+    if (!silent) showToast('กำลังส่งข้อมูลค้างอยู่ กรุณารอสักครู่...', 'info');
+    return retryRun;
+  }
+  retryRun = retryUnsyncedRecordsCore(silent)
+    .catch(err=>{
+      console.error('retryUnsyncedRecords error:', err);
+      if (!silent) showToast('ส่งข้อมูลค้างไม่สำเร็จ: ' + String(err && err.message || err).slice(0, 100), 'error');
+    })
+    .finally(()=>{ retryRun = null; try { updateOnlineIndicator(); } catch(e){} });
+  return retryRun;
+}
+async function retryUnsyncedRecordsCore(silent){
+  if (!isBackendConfigured()){
+    if (!silent) showToast('ยังไม่ได้ตั้งค่า URL ของ Apps Script — ตรวจสอบที่เมนูผู้ดูแลระบบ', 'error');
+    return;
+  }
+  // คำสั่งลบ/แก้ร้านที่ค้าง ส่งไปด้วยทุกครั้ง (ส่งซ้ำได้ ไม่มีผลข้างเคียง)
+  try { await flushPendingOps(); } catch(err){ console.warn('ส่งคำสั่งที่ค้างไม่สำเร็จ:', err); }
+
   const pending = getUnsyncedRecords();
   if (!pending.length){
     if (!silent) showToast('ไม่มีรายการที่ค้างส่ง — ข้อมูลขึ้น Google Sheets ครบแล้ว', 'success');
     return;
   }
   if (!silent) showToast(`กำลังส่งซ้ำ ${pending.length} รายการที่ค้างอยู่...`, 'info');
-  let ok = 0;
+  let ok = 0, sent = 0;
   for (const rec of pending){
-    const res = await submitInspectionVerified(rec);
-    if (res.ok) ok++;
+    // รายการอาจถูกลบระหว่างวนส่ง (ผู้ใช้กดลบ) — ข้าม ไม่ส่งของที่ผู้ใช้ตั้งใจทิ้งแล้วขึ้นไปใหม่
+    if (!INSPECTION_HISTORY.some(h=> h.id === rec.id) || PENDING_OPS.delInspections[rec.id]) continue;
+    sent++;
+    try {
+      const res = await submitInspectionVerified(rec);
+      if (res.ok) ok++;
+    } catch(err){ console.warn('ส่งซ้ำรายการ', rec.id, 'ไม่สำเร็จ:', err); }
   }
   persistHistory();
   safeRefreshUI();
-  if (ok === pending.length) showToast(`✅ ส่งข้อมูลค้างขึ้น Google Sheets สำเร็จครบ ${ok} รายการ`, 'success');
-  else showToast(`ส่งสำเร็จ ${ok}/${pending.length} รายการ — ที่เหลือยังส่งไม่ได้ กรุณาตรวจสอบการเชื่อมต่อ`, 'error');
+  if (!silent || ok > 0){
+    if (ok === sent) showToast(`✅ ส่งข้อมูลค้างขึ้น Google Sheets สำเร็จครบ ${ok} รายการ`, 'success');
+    else showToast(`ส่งสำเร็จ ${ok}/${sent} รายการ — ที่เหลือยังส่งไม่ได้ กรุณาตรวจสอบการเชื่อมต่อ`, 'error');
+  }
 }
 
 /**
@@ -4355,13 +5248,19 @@ async function retryUnsyncedRecords(silent){
  * ปลอดภัยกว่า: รายการที่มีทั้งสองฝั่งจะได้ค่าล่าสุดจาก Sheets, รายการที่มีแต่ในเครื่อง (ยังไม่ทันซิงก์) จะยังคงอยู่
  * @param {boolean} manual - true เมื่อผู้ใช้กดปุ่ม "ซิงก์ใหม่" เอง (จะแจ้งผลเสมอ ไม่ว่าสำเร็จหรือไม่)
  */
+let syncRun = null;   // กันซิงก์ซ้อนกัน (เปิดแอป + กดปุ่มซิงก์รัวๆ) ซึ่งทำให้ผลลัพธ์รอบเก่ามาทับรอบใหม่
 function syncFromBackend(manual){
   if (!isBackendConfigured()){
     if (manual) showToast('URL ของ Apps Script ไม่ถูกต้อง — ตรวจสอบที่เมนูผู้ดูแลระบบ → "🔗 ตั้งค่า URL ของ Apps Script"', 'error');
-    return;
+    return Promise.resolve();
+  }
+  if (syncRun){
+    if (manual) showToast('กำลังซิงก์ข้อมูลอยู่ กรุณารอสักครู่...', 'info');
+    return syncRun;
   }
 
   let lastError = null;
+  const syncStartedAt = Date.now();   // ใช้ตัดสินว่ารายการในเครื่อง "ใหม่กว่า" ข้อมูลที่ดึงมาหรือไม่
   const fetchJson = (action)=> fetchWithTimeout(`${getBackendUrl()}?action=${action}`)
     .then(res=> readJsonSafe(res, action))
     .catch(err=>{
@@ -4370,29 +5269,39 @@ function syncFromBackend(manual){
       return null;
     });
 
-  Promise.all([fetchJson('getTenants'), fetchJson('getInspections')]).then(([tenantsRes, inspectionsRes])=>{
+  syncRun = Promise.all([fetchJson('getTenants'), fetchJson('getInspections')]).then(([tenantsRes, inspectionsRes])=>{
     let tenantsOk = false, inspectionsOk = false;
+    let resendNeeded = false;
 
     if (tenantsRes && tenantsRes.success && Array.isArray(tenantsRes.data)){
-      TENANTS = mergeById(TENANTS, tenantsRes.data, t=>normalizeStoreId(t.storeId));
+      const r = reconcileTenants(tenantsRes.data);
+      TENANTS = r.list;
+      resendNeeded = resendNeeded || r.resend;
       persistTenants();
       tenantsOk = true;
+    } else if (tenantsRes && tenantsRes.success === false && !lastError){
+      lastError = new Error(tenantsRes.message || 'Apps Script แจ้งข้อผิดพลาด (getTenants)');
     }
     if (inspectionsRes && inspectionsRes.success && Array.isArray(inspectionsRes.data)){
-      // รายการที่ดึงกลับมาจาก Sheets ถือว่ายืนยันแล้ว (synced=true) — mergeById จะให้ฝั่ง remote ทับ local
-      // ส่วนรายการที่มีแต่ในเครื่องและยัง synced=false จะยังคงอยู่ ไม่ถูกลบทิ้ง
-      const remote = inspectionsRes.data.map(r=> Object.assign({}, r, { synced: true, photosUploaded: true }));
-      INSPECTION_HISTORY = mergeById(INSPECTION_HISTORY, remote, h=>h.id);
+      const r = reconcileInspections(inspectionsRes.data, syncStartedAt);
+      INSPECTION_HISTORY = r.list;
+      resendNeeded = resendNeeded || r.resend;
       persistHistory();
       inspectionsOk = true;
+    } else if (inspectionsRes && inspectionsRes.success === false && !lastError){
+      lastError = new Error(inspectionsRes.message || 'Apps Script แจ้งข้อผิดพลาด (getInspections)');
     }
+    savePendingOps();
 
     if (tenantsOk || inspectionsOk){
       try { populateStoreSelect(); } catch(err){ console.error('populateStoreSelect error:', err); }
       safeRefreshUI();
-      showToast(`✅ เชื่อมต่อ Google Sheets สำเร็จ (ร้านค้า ${TENANTS.length} ร้าน · ประวัติตรวจ ${INSPECTION_HISTORY.length} รายการ)`, 'success');
-      // เชื่อมต่อได้แล้ว — ลองส่งรายการที่ค้างอยู่ขึ้นไปอัตโนมัติเลย (เงียบๆ ไม่รบกวนผู้ใช้)
-      if (getUnsyncedRecords().length) retryUnsyncedRecords(true);
+      if (manual || !(tenantsOk && inspectionsOk)){
+        const partial = (tenantsOk && inspectionsOk) ? '' : ' (ดึงได้บางส่วน)';
+        showToast(`✅ เชื่อมต่อ Google Sheets สำเร็จ${partial} (ร้านค้า ${numFmt(TENANTS.length)} ร้าน · ประวัติตรวจ ${numFmt(INSPECTION_HISTORY.length)} รายการ)`, partial ? 'warning' : 'success');
+      }
+      // เชื่อมต่อได้แล้ว — ลองส่งรายการ/คำสั่งที่ค้างอยู่ขึ้นไปอัตโนมัติเลย (เงียบๆ ไม่รบกวนผู้ใช้)
+      if (getUnsyncedRecords().length || resendNeeded || pendingOpsCount()) retryUnsyncedRecords(true);
     } else {
       console.warn('เชื่อมต่อ Google Sheets ไม่สำเร็จ หรือยังไม่มีข้อมูลในชีต — ใช้ข้อมูลในเครื่อง (localStorage) ต่อไปก่อน');
       if (manual){
@@ -4406,32 +5315,107 @@ function syncFromBackend(manual){
       }
     }
   }).catch(err=>{
-    // กันเคสที่ตัว then เองโยน error (เช่น mergeById เจอข้อมูลรูปแบบแปลก) แล้วเงียบหายไปทั้งก้อน
+    // กันเคสที่ตัว then เองโยน error (เช่น ข้อมูลรูปแบบแปลก) แล้วเงียบหายไปทั้งก้อน
     console.error('syncFromBackend error:', err);
     if (manual) showToast('ซิงก์ข้อมูลไม่สำเร็จ: ' + (err && err.message || err), 'error');
+  }).finally(()=>{ syncRun = null; });
+  return syncRun;
+}
+
+/* ================================================================
+   v16: ผสานข้อมูลร้านค้าจาก Sheets กับในเครื่อง
+   หลัก: Sheets คือต้นฉบับ ยกเว้นสิ่งที่ผู้ใช้เครื่องนี้แก้/ลบไว้และยังยืนยันไม่ได้ว่าไปถึง
+   - ร้านที่ถูกลบจาก Sheets โดยเครื่องอื่น -> หายจากเครื่องนี้ด้วย (เดิมค้างตลอดไป)
+   - ซิงก์ครั้งแรกของ v16: ร้านที่มีแค่ในเครื่อง ถือว่า "ยังไม่ได้อัปโหลด" แล้วส่งขึ้นให้
+     (กู้ร้านที่นำเข้าจากไฟล์ใน v15 ซึ่งไม่เคยถึง Sheets เพราะ Code.gs ไม่รู้จักคำสั่ง importTenants)
+   ================================================================ */
+function reconcileTenants(remoteRaw){
+  const remote = cleanTenantList(remoteRaw);
+  const remoteMap = new Map(remote.map(t=> [normalizeStoreId(t.storeId), t]));
+  let resend = false;
+
+  let firstRun = false;
+  try { firstRun = !localStorage.getItem(STORAGE_KEYS.opsInit); } catch(err){ firstRun = false; }
+  if (firstRun){
+    TENANTS.forEach(t=>{
+      const k = normalizeStoreId(t.storeId);
+      if (k && !remoteMap.has(k) && !PENDING_OPS.delTenants[k]) PENDING_OPS.saveTenants[k] = normalizeTenant(t);
+    });
+    try { localStorage.setItem(STORAGE_KEYS.opsInit, '1'); } catch(err){ /* ข้าม */ }
+  }
+  // Sheets ว่างเปล่าทั้งชีต แต่ในเครื่องมีร้าน = น่าจะชี้ผิดชีต/ชีตถูกล้าง -> ห้ามลบของในเครื่องทิ้ง
+  const suspiciousEmpty = remote.length === 0 && TENANTS.length > 0;
+
+  // 1) คำสั่งลบที่ค้าง: ถ้า Sheets ยังมีร้านนั้น = ยังไปไม่ถึง (ส่งซ้ำ) / ไม่มีแล้ว = สำเร็จ เลิกติดตาม
+  Object.keys(PENDING_OPS.delTenants).forEach(k=>{
+    if (remoteMap.has(k)){ remoteMap.delete(k); resend = true; }
+    else delete PENDING_OPS.delTenants[k];
   });
+  // 2) การแก้ไข/เพิ่มที่ค้าง: ใช้ค่าในเครื่องจนกว่า Sheets จะตรงกัน
+  Object.keys(PENDING_OPS.saveTenants).forEach(k=>{
+    const local = PENDING_OPS.saveTenants[k];
+    const r = remoteMap.get(k);
+    if (r && tenantEquals(r, local)) delete PENDING_OPS.saveTenants[k];
+    else { remoteMap.set(k, normalizeTenant(local)); resend = true; }
+  });
+
+  let list = Array.from(remoteMap.values());
+  if (suspiciousEmpty){
+    const have = new Set(list.map(t=> normalizeStoreId(t.storeId)));
+    TENANTS.forEach(t=>{ const k = normalizeStoreId(t.storeId); if (!have.has(k) && !PENDING_OPS.delTenants[k]) list.push(t); });
+    console.warn('ชีต Tenants ว่างเปล่า แต่ในเครื่องมีข้อมูลร้าน — คงข้อมูลในเครื่องไว้ ไม่ลบทิ้ง');
+  }
+  return { list: cleanTenantList(list), resend };
 }
 
-// ผสานรายการจาก backend (remote) เข้ากับของในเครื่อง (local) โดยยึด key เดียวกันเป็นหลัก
-// remote ที่มี key ตรงกับ local จะทับค่าเดิม (ถือว่า Sheets เป็นข้อมูลล่าสุด), local ที่ไม่มีใน remote จะยังคงอยู่ (ยังไม่ทันซิงก์ขึ้นไป)
-function mergeById(localArr, remoteArr, keyFn){
-  const map = new Map();
-  (localArr||[]).forEach(item=> map.set(keyFn(item), item));
-  (remoteArr||[]).forEach(item=> map.set(keyFn(item), item));
-  return Array.from(map.values());
+/* v16: ผสานผลตรวจ — กติกา
+   1) รายการที่ผู้ใช้ลบแล้ว (tombstone) ไม่เอากลับมา แม้ Sheets ยังมีอยู่ (ส่งคำสั่งลบซ้ำให้)
+   2) รายการในเครื่องที่ยังไม่ยืนยัน (synced=false) หรือกำลังส่งอยู่ "ชนะ" ของ Sheets เสมอ
+      เดิม Sheets ทับทุกกรณี -> แก้ไขผลตรวจตอนออฟไลน์แล้วซิงก์ = ค่าที่แก้หายเงียบๆ
+   3) รายการที่ยืนยันแล้วแต่ไม่มีใน Sheets แล้ว = ถูกลบจากที่อื่น -> ตัดออก (เดิมค้างเป็นข้อมูลผี)
+      ยกเว้นเพิ่งยืนยันหลังจากเริ่มซิงก์รอบนี้ (ข้อมูลที่ดึงมาอาจเก่ากว่า) หรือ Sheets ว่างทั้งชีต */
+function reconcileInspections(remoteRaw, syncStartedAt){
+  const remote = (remoteRaw || []).filter(r=> r && r.id)
+    .map(r=> Object.assign({}, r, { id:String(r.id), synced:true, photosUploaded:true }));
+  const remoteMap = new Map(remote.map(r=> [r.id, r]));
+  let resend = false;
+
+  Object.keys(PENDING_OPS.delInspections).forEach(id=>{
+    if (remoteMap.has(id)){ remoteMap.delete(id); resend = true; }
+    else delete PENDING_OPS.delInspections[id];
+  });
+
+  const localSyncedCount = INSPECTION_HISTORY.filter(h=> h.synced !== false).length;
+  const allowPrune = !(remote.length === 0 && localSyncedCount > 0);
+  const out = [], used = new Set();
+
+  INSPECTION_HISTORY.forEach(l=>{
+    if (!l || !l.id || PENDING_OPS.delInspections[l.id]) return;
+    const r = remoteMap.get(l.id);
+    const localWins = l.synced === false || SUBMIT_IN_FLIGHT.has(l.id) || l.photosUploaded === false;
+    if (localWins){ out.push(l); if (r) used.add(l.id); return; }
+    if (r){ out.push(r); used.add(l.id); return; }
+    const syncedAt = l.syncedAt ? Date.parse(l.syncedAt) : 0;
+    const freshlySynced = syncedAt && syncedAt >= syncStartedAt - 5000;
+    if (!allowPrune || freshlySynced) out.push(l);
+    // ไม่เข้าเงื่อนไขข้างบน = ถูกลบจาก Sheets แล้ว -> ไม่ใส่กลับ
+  });
+  // วนจาก remoteMap (ไม่ใช่ remote) — รายการที่รอลบ (tombstone) ถูกถอดออกจาก remoteMap แล้วข้างบน
+  // ถ้าวนจาก remote ตรงๆ รายการที่ผู้ใช้ลบตอนออฟไลน์จะถูกดึงกลับมาโผล่ใหม่ทุกครั้งที่ซิงก์
+  remoteMap.forEach((r, id)=>{ if (!used.has(id)) out.push(r); });
+  return { list: out, resend };
 }
 
-function sendMajorDefectAlert(record, tenant){
-  // การส่ง Email/LINE Notify จริงเกิดขึ้นฝั่ง Code.gs — ฝั่ง client แค่ยิง flag แจ้งเตือนซ้ำเพื่อความไว
-  if (!isBackendConfigured()) return;
-  // แนบ "ข้อที่ไม่ผ่าน" ไปด้วย เพื่อให้อีเมล/LINE อ่านแล้วรู้ทันทีว่าตกข้อไหน ไม่ต้องเปิดระบบซ้ำ
-  const defects = getDefectItems(record.checks).map(d=> `${d.item.no}. ${d.item.name}${d.summary ? ' — ' + d.summary : ''}`);
-  fetch(getBackendUrl(), {
-    method:'POST', mode:'no-cors',
-    headers:{ 'Content-Type':'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action:'majorDefectAlert', payload:{ recordId:record.id, storeId:record.storeId, storeName:tenant?.name, zone:tenant?.zone, date:record.date, score:record.score, defects } })
-  }).catch(()=>{});
-  showToast(`🚨 แจ้งเตือน Major Defect: ${tenant?.name} — ส่ง Email/LINE ถึงทีมงานแล้ว`, 'warning');
+/* แจ้งผู้ใช้เรื่องข้อบกพร่องขั้นวิกฤต
+   v16: เลิกยิงคำสั่ง majorDefectAlert จากหน้าเว็บ — Code.gs ส่ง Email/LINE ให้เองตอนบันทึกผลอยู่แล้ว
+   เดิมจึงได้แจ้งเตือน 2 ฉบับต่อ 1 เหตุการณ์ และยังขึ้นข้อความ "ส่งแล้ว" แม้ตอนออฟไลน์ (ไม่จริง) */
+function notifyMajorDefect(record, tenant, synced){
+  const name = (tenant && tenant.name) || record.storeId;
+  if (synced){
+    showToast(`🚨 พบข้อบกพร่องขั้นวิกฤต: ${name} — ระบบส่งแจ้งเตือน Email/LINE ตามที่ตั้งค่าไว้ใน Apps Script`, 'warning');
+  } else {
+    showToast(`🚨 พบข้อบกพร่องขั้นวิกฤต: ${name} — จะส่งแจ้งเตือนทีมงานเมื่อข้อมูลขึ้น Google Sheets สำเร็จ`, 'warning');
+  }
 }
 
 /* ================================================================
@@ -4627,6 +5611,7 @@ function saveEditedInspection(){
   h.notes = document.getElementById('editInspectionNotes').value.trim();
   h.deadline = document.getElementById('editInspectionDeadline').value;
 
+  h.rev = (h.rev || 0) + 1;   // v16: เลขฉบับ — ถ้ามีรอบส่งฉบับเก่าค้างอยู่ จะไม่ถูกนับว่าฉบับนี้ขึ้นแล้ว
   h.synced = false; // รอยืนยันผลกับ Sheets ก่อน
   persistHistory();
   safeRefreshUI();
@@ -4638,13 +5623,12 @@ function saveEditedInspection(){
     persistHistory();
     safeRefreshUI();
     if (res.ok) showToast('✅ แก้ไขผลการตรวจและยืนยันขึ้น Google Sheets สำเร็จ', 'success');
-    else showToast('⚠️ แก้ไขแล้วแต่ยังไม่ขึ้น Google Sheets — กด "ส่งข้อมูลค้าง" เพื่อลองใหม่', 'error');
+    else showToast('⚠️ แก้ไขแล้วแต่ยังไม่ขึ้น Google Sheets — ระบบจะส่งซ้ำอัตโนมัติ หรือกด "ส่งข้อมูลค้าง"', 'error');
+    if (grade === 'major') notifyMajorDefect(h, findTenant(h.storeId) || {}, res.ok);
+  }).catch(err=>{
+    console.error('ส่งผลการแก้ไขไม่สำเร็จ:', err);
+    showToast('⚠️ แก้ไขในเครื่องแล้ว แต่ส่งขึ้น Google Sheets ไม่สำเร็จ — ระบบจะส่งซ้ำให้อัตโนมัติ', 'error');
   });
-
-  if (grade === 'major'){
-    const tenant = findTenant(h.storeId) || {};
-    sendMajorDefectAlert(h, tenant);
-  }
 }
 
 function deleteInspection(recordId){
@@ -4659,9 +5643,13 @@ function deleteInspection(recordId){
     if (!res.isConfirmed) return;
     INSPECTION_HISTORY = INSPECTION_HISTORY.filter(r=>r.id!==recordId);
     persistHistory();
+    // v16: จดไว้ว่าลบแล้ว จนกว่าจะเห็นว่าหายจาก Sheets จริง — ไม่งั้นลบตอนเน็ตหลุดแล้วซิงก์ = ฟื้นกลับมา
+    queueInspectionDelete(recordId);
     postToBackend('deleteInspection', { id: recordId });
     safeRefreshUI();
-    showToast('ลบผลการตรวจเรียบร้อย', 'success');
+    showToast(navigator.onLine === false
+      ? 'ลบในเครื่องแล้ว — จะลบออกจาก Google Sheets ให้อัตโนมัติเมื่อกลับมาออนไลน์'
+      : 'ลบผลการตรวจเรียบร้อย', 'success');
   });
 }
 
@@ -4671,15 +5659,15 @@ function previewHistoryReport(recordId){
   if (!h) return;
   const tenant = findTenant(h.storeId) || {};
   const warningBtn = h.grade !== 'compliant'
-    ? `<button class="btn btn-outline" onclick="previewWarningNotice('${h.id}')">⚠️ ดูใบแจ้งเตือน</button>` : '';
+    ? `<button class="btn btn-outline" onclick="previewWarningNotice('${escAttr(h.id)}')">⚠️ ดูใบแจ้งเตือน</button>` : '';
   openReportPreview({
     record: h, tenant, mode:'view',
     title: `📄 ตัวอย่างใบรายงาน — ${tenant.name||h.storeId}`,
     actionsHtml: `
       <button class="btn btn-outline" onclick="closeReportPreview()">ปิด</button>
       ${warningBtn}
-      <button class="btn btn-outline" onclick="exportSingleReportPNG('${h.id}')">🖼️ บันทึกเป็น PNG</button>
-      <button class="btn btn-grad" style="--g1:var(--grad-1a);--g2:var(--grad-1b);" onclick="exportSingleReportPDF('${h.id}')">🖨️ พิมพ์ / บันทึกเป็น PDF</button>`
+      <button class="btn btn-outline" onclick="exportSingleReportPNG('${escAttr(h.id)}')">🖼️ บันทึกเป็น PNG</button>
+      <button class="btn btn-grad" style="--g1:var(--grad-1a);--g2:var(--grad-1b);" onclick="exportSingleReportPDF('${escAttr(h.id)}')">🖨️ พิมพ์ / บันทึกเป็น PDF</button>`
   });
 }
 
@@ -4694,9 +5682,9 @@ function previewWarningNotice(recordId){
     title: `⚠️ ตัวอย่างใบแจ้งเตือน — ${tenant.name||h.storeId}`,
     actionsHtml: `
       <button class="btn btn-outline" onclick="closeReportPreview()">ปิด</button>
-      <button class="btn btn-outline" onclick="previewHistoryReport('${h.id}')">📄 ดูใบรายงานฉบับเต็ม</button>
-      <button class="btn btn-outline" onclick="exportWarningNoticePNG('${h.id}')">🖼️ บันทึกเป็น PNG</button>
-      <button class="btn btn-grad" style="--g1:#EF4444;--g2:#F97316;" onclick="exportWarningNoticePDF('${h.id}')">🖨️ พิมพ์ / บันทึกเป็น PDF</button>`
+      <button class="btn btn-outline" onclick="previewHistoryReport('${escAttr(h.id)}')">📄 ดูใบรายงานฉบับเต็ม</button>
+      <button class="btn btn-outline" onclick="exportWarningNoticePNG('${escAttr(h.id)}')">🖼️ บันทึกเป็น PNG</button>
+      <button class="btn btn-grad" style="--g1:#EF4444;--g2:#F97316;" onclick="exportWarningNoticePDF('${escAttr(h.id)}')">🖨️ พิมพ์ / บันทึกเป็น PDF</button>`
   });
 }
 
@@ -4794,7 +5782,7 @@ function renderTenantsTable(){
     }
 
     listEl.innerHTML = rows.map(t=>{
-      const isActive = t.status === 'Active';
+      const isActive = isTenantActive(t);
       return `<tr class="border-t border-soft">
         <td class="p-3 font-semibold whitespace-nowrap">${escapeHtml(t.storeId)}</td>
         <td class="p-3 font-semibold">${escapeHtml(t.name)}</td>
@@ -4824,11 +5812,19 @@ function openTenantModal(storeId){
   document.getElementById('t_storeId').disabled = !!t;
   document.getElementById('t_name').value = t?.name || '';
   document.getElementById('t_type').value = t?.type || '';
-  document.getElementById('t_zone').value = t?.zone || 'โซนอาหาร';
+  // v16: โซนที่ไม่อยู่ใน 5 ตัวเลือก (เช่น นำเข้าจากไฟล์ว่า "โซน A") ต้องเพิ่มเป็นตัวเลือกก่อน
+  // ไม่งั้น select จะว่าง แล้วกดบันทึก = โซนของร้านถูกเขียนทับเป็นค่าว่างทั้งในเครื่องและ Sheets
+  const zoneSel = document.getElementById('t_zone');
+  const zoneVal = (t && t.zone) || 'โซนอาหาร';
+  if (!Array.from(zoneSel.options).some(o=> o.value === zoneVal)){
+    const opt = document.createElement('option'); opt.value = zoneVal; opt.textContent = zoneVal;
+    zoneSel.appendChild(opt);
+  }
+  zoneSel.value = zoneVal;
   document.getElementById('t_floor').value = t?.floor || '';
   document.getElementById('t_contact').value = t?.contact || '';
   document.getElementById('t_phone').value = t?.phone || '';
-  document.getElementById('t_status').value = t?.status || 'Active';
+  document.getElementById('t_status').value = t ? normalizeTenantStatus(t.status) : 'Active';
   document.getElementById('tenantModal').classList.remove('js-hidden');
 }
 function closeTenantModal(){ document.getElementById('tenantModal').classList.add('js-hidden'); }
@@ -4837,6 +5833,7 @@ function saveTenant(){
   const storeId = document.getElementById('t_storeId').value.trim();
   const name = document.getElementById('t_name').value.trim();
   if (!storeId || !name){ showToast('กรุณากรอกรหัสร้านและชื่อร้านให้ครบถ้วน', 'error'); return; }
+  if (storeId.length > 40){ showToast('รหัสร้านยาวเกินไป (ไม่เกิน 40 ตัวอักษร)', 'error'); return; }
 
   const data = {
     storeId, name,
@@ -4848,14 +5845,17 @@ function saveTenant(){
     status: document.getElementById('t_status').value,
   };
 
+  data.status = normalizeTenantStatus(data.status);
   if (State.editingTenantId){
     const idx = TENANTS.findIndex(t=> normalizeStoreId(t.storeId) === normalizeStoreId(State.editingTenantId));
-    if (idx>-1) TENANTS[idx] = data;
+    // ร้านอาจหายไประหว่างเปิดหน้าแก้ไข (ซิงก์เบื้องหลังตัดออก) — เพิ่มกลับแทนการทิ้งข้อมูลที่แก้เงียบๆ
+    if (idx > -1) TENANTS[idx] = data; else TENANTS.push(data);
   } else {
     if (TENANTS.some(t=>normalizeStoreId(t.storeId)===normalizeStoreId(storeId))){ showToast('รหัสร้านนี้มีอยู่ในระบบแล้ว','error'); return; }
     TENANTS.push(data);
   }
   persistTenants(); // บันทึกลงเครื่องทันที กันข้อมูลหายเมื่อรีเฟรช/ปิดแท็บ
+  queueTenantSave(data);                    // v16: ติดตามจนกว่า Sheets จะมีค่าตรงกัน
   postTenantToBackend('saveTenant', data); // ซิงก์ไป Google Sheets ด้วย (fire-and-forget)
   safeRefreshUI();
   try { populateStoreSelect(); } catch(err){ console.error('populateStoreSelect error:', err); }
@@ -4864,11 +5864,21 @@ function saveTenant(){
 }
 
 function deleteTenant(storeId){
-  Swal.fire({ icon:'warning', title:'ยืนยันการลบร้านค้า?', text:storeId, showCancelButton:true, confirmButtonText:'ลบ', cancelButtonText:'ยกเลิก', confirmButtonColor:'#EF4444' })
+  const t = findTenant(storeId);
+  const key = normalizeStoreId(storeId);
+  const historyCount = INSPECTION_HISTORY.filter(h=> normalizeStoreId(h.storeId) === key).length;
+  const inUse = State.draft && normalizeStoreId(State.draft.storeId) === key;
+  Swal.fire({ icon:'warning', title:'ยืนยันการลบร้านค้า?',
+    html:`<b>${escapeHtml(storeId)}</b>${t ? ' — ' + escapeHtml(t.name) : ''}
+          ${historyCount ? `<br><span style="font-size:13px;">ร้านนี้มีประวัติการตรวจ ${numFmt(historyCount)} รายการ (ประวัติจะยังอยู่ แต่จะไม่แสดงชื่อร้าน)<br>ถ้าร้านแค่ปิดกิจการ แนะนำให้ "แก้ไข" สถานะเป็น Closed แทนการลบ</span>` : ''}
+          ${inUse ? '<br><span style="color:#EF4444;font-size:13px;">⚠️ ร้านนี้กำลังถูกกรอกฟอร์มตรวจอยู่</span>' : ''}`,
+    showCancelButton:true, confirmButtonText:'ลบ', cancelButtonText:'ยกเลิก', confirmButtonColor:'#EF4444' })
     .then(res=>{
       if (res.isConfirmed){
-        TENANTS = TENANTS.filter(t=>t.storeId!==storeId);
+        // เทียบแบบ normalize — เดิมเทียบ === ตรงๆ ร้านที่รหัสมีช่องว่าง/ตัวพิมพ์ต่างจะลบไม่ออก
+        TENANTS = TENANTS.filter(x=> normalizeStoreId(x.storeId) !== key);
         persistTenants(); // บันทึกลงเครื่องทันที กันข้อมูลหายเมื่อรีเฟรช/ปิดแท็บ
+        queueTenantDelete(storeId);       // v16: กันร้านที่ลบตอนออฟไลน์ฟื้นกลับมาตอนซิงก์
         postTenantToBackend('deleteTenant', { storeId }); // ซิงก์ไป Google Sheets ด้วย
         safeRefreshUI();
         try { populateStoreSelect(); } catch(err){ console.error('populateStoreSelect error:', err); }
@@ -4903,9 +5913,8 @@ function mapImportedRow(row){
     out[field] = foundKey ? String(row[foundKey]).trim() : '';
   }
   // แปลงคำว่าสถานะให้เป็นค่ามาตรฐาน Active/Closed เสมอ ไม่ว่าไฟล์จะเขียนเป็นไทยหรืออังกฤษ
-  if (!out.status) out.status = 'Active';
-  else if (/ปิด|closed/i.test(out.status)) out.status = 'Closed';
-  else out.status = 'Active';
+  // v16: บั๊กเดิมใช้ /ปิด/ ซึ่งไปเจอ "ปิด" ในคำว่า "เปิด" -> ร้านที่ "เปิดดำเนินการ" กลายเป็น Closed
+  out.status = normalizeTenantStatus(out.status);
   return out;
 }
 
@@ -4923,6 +5932,8 @@ function closeTenantImportModal(){
 function handleTenantImportFile(evt){
   const file = evt.target.files[0];
   if (!file) return;
+  if (!requireLib(typeof XLSX !== 'undefined', 'การอ่านไฟล์ Excel/CSV')) return;
+  if (file.size > 15 * 1024 * 1024){ showToast('ไฟล์ใหญ่เกิน 15MB กรุณาแยกไฟล์หรือลบคอลัมน์ที่ไม่จำเป็นออก', 'error'); return; }
   const reader = new FileReader();
   reader.onerror = () => showToast('อ่านไฟล์ไม่สำเร็จ (ไฟล์อาจเสียหายหรือถูกล็อก)', 'error');
   reader.onload = (e)=>{
@@ -4937,9 +5948,13 @@ function handleTenantImportFile(evt){
       if (rawRows.length > 5000){
         showToast(`ไฟล์มีข้อมูลมากถึง ${numFmt(rawRows.length)} แถว จะประมวลผลเฉพาะ 5,000 แถวแรกเพื่อความเสถียร`, 'error');
       }
-      const mapped = rawRows.slice(0, 5000).map(mapImportedRow).filter(r=>r.storeId && r.name);
+      const valid = rawRows.slice(0, 5000).map(mapImportedRow).filter(r=>r.storeId && r.name);
+      // รหัสร้านซ้ำกันในไฟล์เดียวกัน (ต่างแค่ตัวพิมพ์/ช่องว่าง) — ใช้แถวล่างสุด และแจ้งจำนวนที่ซ้ำ
+      const byKey = new Map();
+      valid.forEach(r=> byKey.set(normalizeStoreId(r.storeId), r));
+      const mapped = Array.from(byKey.values());
       State.importRows = mapped;
-      renderImportPreview(mapped, rawRows.length);
+      renderImportPreview(mapped, rawRows.length, valid.length - mapped.length);
     } catch(err){
       console.error('handleTenantImportFile error:', err);
       showToast('ไม่สามารถอ่านไฟล์นี้ได้: ' + (err.message || 'รูปแบบไฟล์ไม่ถูกต้อง'), 'error');
@@ -4948,7 +5963,7 @@ function handleTenantImportFile(evt){
   reader.readAsArrayBuffer(file);
 }
 
-function renderImportPreview(mapped, totalRaw){
+function renderImportPreview(mapped, totalRaw, dupCount){
   const area = document.getElementById('importPreviewArea');
   const confirmBtn = document.getElementById('importConfirmBtn');
   if (!mapped.length){
@@ -4956,18 +5971,23 @@ function renderImportPreview(mapped, totalRaw){
     confirmBtn.classList.add('js-hidden');
     return;
   }
-  const existingIds = new Set(TENANTS.map(t=>t.storeId));
-  const newCount = mapped.filter(r=>!existingIds.has(r.storeId)).length;
+  // เทียบแบบ normalize — เดิมเทียบตรงๆ รหัส "a-101" ในไฟล์กับ "A-101" ในระบบถูกนับเป็น "ร้านใหม่" ผิดความจริง
+  const existingIds = new Set(TENANTS.map(t=> normalizeStoreId(t.storeId)));
+  const isExisting = (r)=> existingIds.has(normalizeStoreId(r.storeId));
+  const newCount = mapped.filter(r=> !isExisting(r)).length;
   const updateCount = mapped.length - newCount;
+  const skipped = Math.max(0, totalRaw - mapped.length - (dupCount || 0));
   area.innerHTML = `
-    <p class="text-sm mb-3">พบ <b>${mapped.length}</b> ร้านค้าที่ถูกต้อง — ร้านใหม่ <b style="color:#10B981;">${newCount}</b> ร้าน · จะอัปเดตทับของเดิม <b style="color:#F59E0B;">${updateCount}</b> ร้าน</p>
+    <p class="text-sm mb-3">พบ <b>${numFmt(mapped.length)}</b> ร้านค้าที่ถูกต้อง — ร้านใหม่ <b style="color:#10B981;">${numFmt(newCount)}</b> ร้าน · จะอัปเดตทับของเดิม <b style="color:#F59E0B;">${numFmt(updateCount)}</b> ร้าน
+      ${dupCount ? `<br><span style="color:#F59E0B;">รหัสร้านซ้ำในไฟล์ ${numFmt(dupCount)} แถว — ใช้ข้อมูลแถวล่างสุดของแต่ละรหัส</span>` : ''}
+      ${skipped ? `<br><span class="text-muted">ข้าม ${numFmt(skipped)} แถวที่ไม่มีรหัสร้านหรือชื่อร้าน</span>` : ''}</p>
     <div class="overflow-x-auto rounded-xl border border-soft" style="max-height:280px; overflow-y:auto;">
       <table class="w-full text-xs">
         <thead><tr class="text-left surface-2"><th class="p-2">รหัสร้าน</th><th class="p-2">ชื่อร้าน</th><th class="p-2">ประเภท</th><th class="p-2">โซน/ชั้น</th><th class="p-2">สถานะ</th></tr></thead>
         <tbody>${mapped.map(r=>`<tr class="border-t border-soft">
-          <td class="p-2 font-semibold">${r.storeId}</td><td class="p-2">${r.name}</td><td class="p-2">${r.type||'-'}</td>
-          <td class="p-2">${r.zone||'-'} ${r.floor||''}</td>
-          <td class="p-2">${existingIds.has(r.storeId)
+          <td class="p-2 font-semibold">${escapeHtml(r.storeId)}</td><td class="p-2">${escapeHtml(r.name)}</td><td class="p-2">${escapeHtml(r.type||'-')}</td>
+          <td class="p-2">${escapeHtml(r.zone||'-')} ${escapeHtml(r.floor||'')}</td>
+          <td class="p-2">${isExisting(r)
             ? '<span class="chip" style="background:rgba(245,158,11,.12);color:#F59E0B;">อัปเดต</span>'
             : '<span class="chip" style="background:rgba(16,185,129,.12);color:#10B981;">ใหม่</span>'}</td>
         </tr>`).join('')}</tbody>
@@ -4982,14 +6002,17 @@ function confirmTenantImport(){
   const importedRecords = [];
   State.importRows.forEach(r=>{
     const idx = TENANTS.findIndex(t=>normalizeStoreId(t.storeId)===normalizeStoreId(r.storeId));
-    const record = {
+    const record = normalizeTenant({
       storeId: r.storeId, name: r.name, type: r.type || '-', zone: r.zone || 'โซนอาหาร',
       floor: r.floor || '-', contact: r.contact || '-', phone: r.phone || '-', status: r.status || 'Active',
-    };
+    });
     if (idx > -1){ TENANTS[idx] = record; updated++; } else { TENANTS.push(record); added++; }
     importedRecords.push(record);
   });
   persistTenants(); // บันทึกลงเครื่องทันที กันข้อมูลหายเมื่อรีเฟรช/ปิดแท็บ
+  // v16: Code.gs เดิมไม่มีคำสั่ง importTenants เลย ร้านที่นำเข้าจึงไม่เคยขึ้น Sheets (Code_v16.gs เพิ่มให้แล้ว)
+  // และจดทุกร้านเข้าคิวไว้ด้วย ถ้า Apps Script ยังเป็นเวอร์ชันเก่า ระบบจะส่งทีละร้านซ้ำให้ตอนซิงก์
+  importedRecords.forEach(queueTenantSave);
   postTenantToBackend('importTenants', importedRecords); // ซิงก์ไป Google Sheets ทั้งชุดด้วย
   safeRefreshUI();
   try { populateStoreSelect(); } catch(err){ console.error('populateStoreSelect error:', err); }
@@ -4998,6 +6021,7 @@ function confirmTenantImport(){
 }
 
 function downloadTenantImportTemplate(){
+  if (!requireLib(typeof XLSX !== 'undefined', 'การสร้างไฟล์ Excel')) return;
   const sample = [
     { 'รหัสร้าน':'A-105', 'ชื่อร้าน':'ตัวอย่างร้านค้า', 'ประเภทธุรกิจ':'ร้านอาหาร', 'โซน':'โซนอาหาร', 'ชั้น':'ชั้น 3', 'ผู้ติดต่อ':'คุณตัวอย่าง', 'เบอร์โทร':'080-000-0000', 'สถานะ':'Active' },
   ];
@@ -5051,17 +6075,18 @@ async function resolveImageForExport(src){
   if (IMAGE_CACHE.has(str)) return IMAGE_CACHE.get(str);
 
   const fileId = extractDriveFileId(str);
-  if (!fileId || !isBackendConfigured()){ IMAGE_CACHE.set(str, ''); return ''; }
+  if (!fileId || !isBackendConfigured()) return '';
 
   try {
-    const res  = await fetch(`${getBackendUrl()}?action=getImage&id=${encodeURIComponent(fileId)}`);
-    const json = await res.json();
-    const dataUrl = (json && json.success && json.dataUrl) ? json.dataUrl : '';
-    IMAGE_CACHE.set(str, dataUrl);
+    // v16: ต้องมี timeout — เดิมใช้ fetch เปล่า เน็ตค้างทีไรหน้าต่าง "กำลังจัดเตรียมเอกสาร" ค้างไม่มีวันจบ
+    const res  = await fetchWithTimeout(`${getBackendUrl()}?action=getImage&id=${encodeURIComponent(fileId)}`, undefined, 25000);
+    const json = await readJsonSafe(res, 'getImage');
+    const dataUrl = (json && json.success && typeof json.dataUrl === 'string' && json.dataUrl.indexOf('data:image/') === 0) ? json.dataUrl : '';
+    // จำเฉพาะที่ดึงสำเร็จ — เดิมจำ "ความล้มเหลว" ไว้ด้วย พอเน็ตกลับมาแล้วก็ยังได้กรอบว่างจนกว่าจะรีเฟรช
+    if (dataUrl) IMAGE_CACHE.set(str, dataUrl);
     return dataUrl;
   } catch(err){
     console.warn('ดึงรูปจาก Google Drive มาใส่ใบรายงานไม่สำเร็จ:', fileId, err);
-    IMAGE_CACHE.set(str, '');
     return '';
   }
 }
@@ -5150,6 +6175,8 @@ async function captureElementToPNG(elementId, filename){
 
 // ใส่ HTML ที่สร้างไว้ลงใน container ที่ซ่อนอยู่ แล้ว capture ออกเป็น PDF หรือ PNG ตามที่เลือก
 async function fillAndExport(rootId, html, filename, format){
+  if (!requireLib(typeof html2canvas !== 'undefined' && (format === 'png' || (window.jspdf && window.jspdf.jsPDF)),
+    format === 'png' ? 'การบันทึกเป็นรูปภาพ' : 'การสร้างไฟล์ PDF')) return;
   document.getElementById(rootId).innerHTML = html;
   try {
     if (format === 'png') await captureElementToPNG(rootId, filename);
@@ -5203,10 +6230,10 @@ function exportSingleReportPDF(recordId){ exportInspectionReportAs(recordId, 'pd
 function exportSingleReportPNG(recordId){ exportInspectionReportAs(recordId, 'png'); }
 function exportInspectionReportAs(recordId, format){
   const h = INSPECTION_HISTORY.find(r=>r.id===recordId);
-  if (!h) return;
+  if (!h){ showToast('ไม่พบรายการนี้ (อาจถูกลบหรือซิงก์ใหม่ไปแล้ว)', 'error'); return; }
   const tenant = findTenant(h.storeId) || {};
   exportRecordDocument(h, tenant, renderInspectionReportContent,
-    `MallGuard-Report-${h.storeId}-${h.date}.${format}`, format);
+    `MallGuard-Report-${safeFilePart(h.storeId)}-${safeFilePart(dayKeyOf(h.date) || h.date)}.${format}`, format);
 }
 
 function exportWarningNoticePDF(recordId){ exportWarningNoticeAs(recordId, 'pdf'); }
@@ -5217,7 +6244,7 @@ function exportWarningNoticeAs(recordId, format){
   if (h.grade === 'compliant'){ showToast('รายการนี้ผ่านมาตรฐานทุกข้อ ไม่มีข้อบกพร่องที่ต้องออกใบแจ้งเตือน', 'info'); return; }
   const tenant = findTenant(h.storeId) || {};
   exportRecordDocument(h, tenant, renderWarningNoticeContent,
-    `MallGuard-Warning-${h.storeId}-${h.date}.${format}`, format);
+    `MallGuard-Warning-${safeFilePart(h.storeId)}-${safeFilePart(dayKeyOf(h.date) || h.date)}.${format}`, format);
 }
 
 // ป้ายชื่อประเภทการตรวจ (ใช้ร่วมกันหลายจุด)
@@ -6126,6 +7153,7 @@ function exportPeriodicReport(format){
 /* Excel แยก 3 ชีต — แต่ละชีตตอบคำถามคนละข้อ
    ถ้ายัดรวมชีตเดียวจะกรอง/ทำ Pivot ต่อไม่ได้ ซึ่งเป็นสิ่งที่ฝ่ายบริหารทำเป็นประจำ */
 function exportPeriodicExcel(){
+  if (!requireLib(typeof XLSX !== 'undefined', 'การสร้างไฟล์ Excel')) return;
   try {
     const st = computePeriodStats(getSelectedPeriod());
     if (!st.inspectionCount){
@@ -6212,29 +7240,79 @@ function inspectionToExportRow(h){
   return row;
 }
 
+/* ชื่อไฟล์ export ที่อ่านรู้เรื่อง: วันที่ พ.ศ. + เวลา แทนเลข timestamp ยาวๆ */
+function exportStamp(){
+  const d = new Date();
+  return `${d.getFullYear()+543}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}-${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}`;
+}
+/* ประวัติเรียงล่าสุดก่อน — เดิมเรียงตามลำดับที่อยู่ในหน่วยความจำ ซึ่งสลับไปมาหลังซิงก์ */
+function historyRowsSorted(){
+  return INSPECTION_HISTORY.slice().sort((a,b)=> (dayKeyOf(b.date) || '').localeCompare(dayKeyOf(a.date) || ''));
+}
+
 function exportDashboardExcel(){
-  const rows = INSPECTION_HISTORY.map(inspectionToExportRow);
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'สรุปผลตรวจ');
-  XLSX.writeFile(wb, `MallGuard-Dashboard-${Date.now()}.xlsx`);
-  showToast('Export Excel สำเร็จ','success');
+  if (!requireLib(typeof XLSX !== 'undefined', 'การสร้างไฟล์ Excel')) return;
+  if (!INSPECTION_HISTORY.length){ showToast('ยังไม่มีผลการตรวจให้ Export', 'error'); return; }
+  try {
+    const rows = historyRowsSorted().map(inspectionToExportRow);
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'สรุปผลตรวจ');
+    XLSX.writeFile(wb, `MallGuard-Inspections-${exportStamp()}.xlsx`);
+    showToast(`Export Excel สำเร็จ (${numFmt(rows.length)} รายการ)`,'success');
+  } catch(err){
+    console.error('exportDashboardExcel error:', err);
+    Swal.fire({ icon:'error', title:'Export Excel ไม่สำเร็จ', text:String(err && err.message || err), confirmButtonColor:'#C9971B' });
+  }
 }
 function exportHistoryExcel(){ exportDashboardExcel(); }
 
+/* กันสูตรแฝงใน CSV (CSV/Formula Injection)
+   ข้อความที่ขึ้นต้นด้วย = + @ (หรือ - ตามด้วยตัวอักษร) จะถูก Excel รันเป็นสูตรทันทีที่เปิดไฟล์
+   ข้อมูลมาจากผู้ใช้พิมพ์เอง (หมายเหตุ/ชื่อผู้ติดต่อ) จึงต้องใส่ ' นำหน้าให้เป็นข้อความธรรมดา */
+function csvSafe(v){
+  if (typeof v !== 'string') return v;
+  return /^[=+@\t\r]/.test(v) || /^-[^\d\s-]/.test(v) ? "'" + v : v;
+}
 function exportHistoryCSV(){
-  const rows = INSPECTION_HISTORY.map(inspectionToExportRow);
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const csv = XLSX.utils.sheet_to_csv(ws);
-  const blob = new Blob(['\uFEFF'+csv], { type:'text/csv;charset=utf-8;' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = `MallGuard-History-${Date.now()}.csv`; a.click();
-  showToast('Export CSV สำเร็จ','success');
+  if (!requireLib(typeof XLSX !== 'undefined', 'การสร้างไฟล์ CSV')) return;
+  if (!INSPECTION_HISTORY.length){ showToast('ยังไม่มีผลการตรวจให้ Export', 'error'); return; }
+  try {
+    const rows = historyRowsSorted().map(inspectionToExportRow).map(r=>{
+      const o = {}; Object.keys(r).forEach(k=> o[k] = csvSafe(r[k])); return o;
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const csv = XLSX.utils.sheet_to_csv(ws);
+    const blob = new Blob(['\uFEFF'+csv], { type:'text/csv;charset=utf-8;' });   // BOM ให้ Excel อ่านภาษาไทยถูก
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `MallGuard-History-${exportStamp()}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=> URL.revokeObjectURL(url), 4000);   // คืนหน่วยความจำ (เดิมไม่คืน)
+    showToast(`Export CSV สำเร็จ (${numFmt(rows.length)} รายการ)`,'success');
+  } catch(err){
+    console.error('exportHistoryCSV error:', err);
+    Swal.fire({ icon:'error', title:'Export CSV ไม่สำเร็จ', text:String(err && err.message || err), confirmButtonColor:'#C9971B' });
+  }
 }
 
-/* ปิด modal เมื่อคลิกพื้นหลัง */
+/* ปิด modal เมื่อคลิกพื้นหลัง
+   v16: ต้องปิดผ่านฟังก์ชันของโมดัลนั้นๆ — เดิมแค่ซ่อนกล่อง ถ้าเป็นโมดัลกล้อง
+   สตรีมกล้องจะยังทำงานค้าง และ idlePaused ค้างเป็น true -> หน้าพักจอไม่ทำงานอีกเลย */
 document.querySelectorAll('.modal-backdrop').forEach(m=>{
-  m.addEventListener('click', e=>{ if (e.target===m) m.classList.add('js-hidden'); });
+  m.addEventListener('click', e=>{
+    if (e.target !== m) return;
+    if (m.id === 'reportPreviewModal' && State.submitting) return;   // กำลังบันทึกผล ห้ามปิดกลางคัน
+    const closers = {
+      cameraModal: closeCamera,
+      editInspectionModal: closeEditInspectionModal,
+      tenantModal: closeTenantModal,
+      tenantImportModal: closeTenantImportModal,
+      reportPreviewModal: closeReportPreview,
+    };
+    try { (closers[m.id] || (()=> m.classList.add('js-hidden')))(); }
+    catch(err){ console.error('ปิดหน้าต่างไม่สำเร็จ:', err); m.classList.add('js-hidden'); }
+  });
 });
 </script>
 </body>
