@@ -1,6 +1,26 @@
 <!DOCTYPE html>
 <!-- ============================================================
   MallGuard — Tenant Safety & Standards Inspection System
+  Version 17 (v17) — เพิ่มร้านค้าใหม่ได้เองจากหน้า "ฟอร์มตรวจประเมินร้านค้า"
+  ---------------------------------------------------------------
+  [ฟีเจอร์ใหม่]
+  1. ปุ่ม "➕ เพิ่มร้านใหม่" ข้างหัวข้อ "เลือกร้านค้า" + แถว "เพิ่มร้านใหม่" ท้ายรายการค้นหาเสมอ
+     - เจ้าหน้าที่ผู้ตรวจเพิ่มร้านได้เอง ไม่ต้องสลับเป็นผู้ดูแลระบบ (แก้ไข/ลบร้านเดิมยังเป็นสิทธิ์ผู้ดูแลระบบ)
+     - ค้นหาไม่เจอแล้วกด Enter / แตะแถวเพิ่มร้าน = เปิดฟอร์มเพิ่มร้านพร้อมเติมคำที่พิมพ์ไว้ให้
+       (ดูเหมือนรหัส เช่น "B-205" -> ใส่ช่องรหัสร้าน / เป็นชื่อ -> ใส่ช่องชื่อร้าน)
+     - บันทึกแล้วเลือกร้านนั้นเริ่มตรวจต่อได้ทันที (ถ้ามีฟอร์มกรอกค้างจะถามยืนยันก่อนเหมือนเดิม)
+  2. ฟอร์มข้อมูลร้านค้า (ใช้ร่วมกันทั้งหน้าฟอร์มตรวจและเมนูผู้ดูแลระบบ)
+     - ตรวจรหัสซ้ำทันทีขณะพิมพ์ — ถ้าซ้ำกับร้านที่เปิดอยู่ มีปุ่ม "เลือกตรวจร้านนี้แทน"
+     - เตือน (ไม่บล็อก) เมื่อชื่อร้านคล้ายร้านที่มีอยู่ กันเพิ่มร้านเดียวกันซ้ำคนละรหัส
+     - โซน: เลือกจากรายการ หรือ "อื่นๆ (พิมพ์เอง)" · ประเภทธุรกิจ/ชั้น มีคำแนะนำจากข้อมูลร้านเดิม
+     - ตรวจเบอร์โทร (ตัวเลข 9–10 หลัก รองรับ "ต่อ"/เบอร์ภายใน) · กด Enter เพื่อบันทึก
+  [ความถูกต้องของข้อมูล]
+  3. ก่อนบันทึกร้านใหม่ ดึงรายชื่อร้านล่าสุดจาก Google Sheets มาตรวจรหัสซ้ำอีกรอบ (มีสถานะกำลังตรวจสอบ)
+     เพราะเครื่องอื่นอาจเพิ่มรหัสเดียวกันไปก่อนแล้วแต่เครื่องนี้ยังไม่ได้ซิงก์
+  4. ร้านที่เพิ่มตอนออฟไลน์ส่งขึ้น Sheets แบบ "เพิ่มเท่านั้น" (createOnly) — ถ้าตอนส่งพบว่ารหัสนี้มีอยู่แล้ว
+     จะไม่เขียนทับร้านเดิมใน Sheets และแจ้งผู้ใช้ให้ตรวจสอบ (เดิม saveTenant เขียนทับเงียบๆ)
+     ⚠️ ต้องอัปเดต Code.gs เป็น v8 และ Deploy เวอร์ชันใหม่
+  ---------------------------------------------------------------
   Version 16 (v16) — ค้นหาร้านค้า + เข้าแอปอัตโนมัติ + ตรวจทาน Logic/Edge Cases รอบใหญ่
   ---------------------------------------------------------------
   [ฟีเจอร์ใหม่]
@@ -1295,6 +1315,27 @@ input:focus, select:focus, textarea:focus{ background:var(--bg-2); }
 .sp-empty{ padding:16px 12px; font-size:13px; color:var(--text-muted); text-align:center; line-height:1.7; }
 .sp-note{ padding:8px 12px 4px; font-size:12px; color:var(--text-muted); text-align:center; border-top:1px dashed var(--border); margin-top:4px; line-height:1.6; }
 .sp-status{ margin-top:8px; font-size:12px; color:var(--text-muted); line-height:1.6; }
+/* v17: แถว "เพิ่มร้านใหม่" ท้ายรายการค้นหา + ฟอร์มข้อมูลร้านค้า */
+.sp-add{ display:flex; align-items:center; gap:10px; margin:4px 0; padding:11px 12px; border-radius:10px; cursor:pointer;
+  border:1.5px dashed var(--gold); color:var(--gold-text); font-weight:700; font-size:13.5px; line-height:1.5; }
+.sp-add:hover, .sp-add.is-active{ background:rgba(201,151,27,.10); }
+.sp-add-icon{ flex-shrink:0; width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+  background:rgba(201,151,27,.18); font-size:15px; }
+.sp-add-text{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sp-head-actions{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.tm-banner{ border-radius:12px; padding:10px 12px; font-size:12.5px; line-height:1.65; margin-bottom:12px;
+  background:rgba(201,151,27,.10); border:1px solid rgba(201,151,27,.35); color:var(--text); }
+.tm-req{ color:#EF4444; font-weight:700; }
+.tm-hint{ margin-top:5px; font-size:12px; line-height:1.6; min-height:0; }
+.tm-hint:empty{ display:none; }
+.tm-hint.is-ok{ color:#10B981; }
+.tm-hint.is-warn{ color:#D97706; }
+.tm-hint.is-err{ color:#EF4444; font-weight:600; }
+.tm-hint-btn{ margin-top:6px; display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:9px; font-size:12px; font-weight:700;
+  border:1.5px solid currentColor; background:transparent; cursor:pointer; }
+input.is-invalid, select.is-invalid{ border-color:#EF4444 !important; box-shadow:0 0 0 3px rgba(239,68,68,.15); }
+.tm-check{ display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer; user-select:none; }
+.tm-check input{ width:18px; height:18px; min-height:0; padding:0; accent-color:var(--gold); }
 @media (max-width:640px){
   .sp-item{ padding:11px 10px; }
   .sp-badge{ font-size:10px; padding:2px 6px; }
@@ -1534,7 +1575,12 @@ input:focus, select:focus, textarea:focus{ background:var(--bg-2); }
       <div class="surface rounded-2xl p-5">
         <div class="flex items-center justify-between gap-2 flex-wrap mb-3">
           <label class="field-label !mb-0" for="storeSearchInput">เลือกร้านค้า</label>
-          <span class="text-xs text-muted" id="storePickerCount"></span>
+          <div class="sp-head-actions">
+            <span class="text-xs text-muted" id="storePickerCount"></span>
+            <!-- v17: เพิ่มร้านใหม่ได้จากหน้านี้เลย (ร้านเปิดใหม่หลังตั้งระบบ) ไม่ต้องสลับเป็นผู้ดูแลระบบ -->
+            <button type="button" class="btn btn-outline !min-h-[32px] !py-1 !px-3 text-xs" id="addStoreFromFormBtn"
+                    onclick="openAddStoreFromForm('')">➕ เพิ่มร้านใหม่</button>
+          </div>
         </div>
         <!-- v16: ช่องค้นหาร้านค้าแบบพิมพ์แล้วกรองทันที (combobox)
              dropdown เดิมต้องเลื่อนหาทีละร้านจากหลักร้อยรายการบนจอมือถือ ซึ่งช้าและเลือกผิดง่าย
@@ -1744,23 +1790,37 @@ input:focus, select:focus, textarea:focus{ background:var(--bg-2); }
       <h3 class="font-bold text-lg" id="tenantModalTitle">เพิ่มร้านค้าใหม่</h3>
       <button onclick="closeTenantModal()" class="text-2xl leading-none">&times;</button>
     </div>
+    <div id="tenantModalBanner" class="tm-banner js-hidden">
+      🏬 เพิ่มร้านที่ยังไม่มีในระบบ (เช่น ร้านเปิดใหม่) — บันทึกแล้วเลือกตรวจร้านนี้ต่อได้ทันที<br>
+      <span class="text-muted">ต้องการแก้ไข/ลบร้านที่มีอยู่แล้ว ให้ผู้ดูแลระบบทำที่เมนู "ข้อมูลร้านค้า"</span>
+    </div>
     <div class="space-y-3">
       <input type="hidden" id="t_storeId_edit">
-      <div><label class="field-label">รหัสร้าน (Store ID)</label><input id="t_storeId" placeholder="เช่น A-101"></div>
-      <div><label class="field-label">ชื่อร้านค้า</label><input id="t_name" placeholder="เช่น ชาบูฮะ"></div>
-      <div><label class="field-label">ประเภทธุรกิจ</label><input id="t_type" placeholder="เช่น ร้านอาหาร/บุฟเฟต์"></div>
+      <div><label class="field-label" for="t_storeId">รหัสร้าน (Store ID) <span class="tm-req">*</span></label>
+        <input id="t_storeId" placeholder="เช่น A-101" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <div class="tm-hint" id="t_storeId_hint"></div></div>
+      <div><label class="field-label" for="t_name">ชื่อร้านค้า <span class="tm-req">*</span></label>
+        <input id="t_name" placeholder="เช่น ชาบูฮะ" maxlength="120" autocomplete="off">
+        <div class="tm-hint" id="t_name_hint"></div></div>
+      <div><label class="field-label" for="t_type">ประเภทธุรกิจ</label>
+        <input id="t_type" placeholder="เช่น ร้านอาหาร/บุฟเฟต์" maxlength="80" autocomplete="off" list="dl_tenant_type"></div>
       <div class="grid grid-cols-2 gap-3">
-        <div><label class="field-label">โซน</label>
+        <div><label class="field-label" for="t_zone">โซน</label>
           <select id="t_zone"><option>โซนอาหาร</option><option>โซนพลาซ่า</option><option>โซนไอที</option><option>โซนแฟชั่น</option><option>โซนบริการ</option></select>
+          <input id="t_zone_custom" class="js-hidden" style="margin-top:8px;" placeholder="พิมพ์ชื่อโซน เช่น โซน B" maxlength="60" autocomplete="off">
         </div>
-        <div><label class="field-label">ชั้น</label><input id="t_floor" placeholder="เช่น ชั้น 3"></div>
+        <div><label class="field-label" for="t_floor">ชั้น</label><input id="t_floor" placeholder="เช่น ชั้น 3" maxlength="40" autocomplete="off" list="dl_tenant_floor"></div>
       </div>
       <div class="grid grid-cols-2 gap-3">
-        <div><label class="field-label">ผู้ติดต่อประจำร้าน</label><input id="t_contact"></div>
-        <div><label class="field-label">เบอร์โทรศัพท์</label><input id="t_phone"></div>
+        <div><label class="field-label" for="t_contact">ผู้ติดต่อประจำร้าน</label><input id="t_contact" maxlength="80" autocomplete="off"></div>
+        <div><label class="field-label" for="t_phone">เบอร์โทรศัพท์</label><input id="t_phone" type="tel" inputmode="tel" maxlength="40" placeholder="เช่น 081-234-5678" autocomplete="off">
+          <div class="tm-hint" id="t_phone_hint"></div></div>
       </div>
-      <div><label class="field-label">สถานะ</label><select id="t_status"><option value="Active">Active (เปิดดำเนินการ)</option><option value="Closed">Closed (ปิดร้าน)</option></select></div>
-      <button class="btn btn-grad w-full" style="--g1:var(--grad-1a);--g2:var(--grad-1b);" onclick="saveTenant()">💾 บันทึกข้อมูลร้านค้า</button>
+      <div id="t_status_wrap"><label class="field-label" for="t_status">สถานะ</label><select id="t_status"><option value="Active">Active (เปิดดำเนินการ)</option><option value="Closed">Closed (ปิดร้าน)</option></select></div>
+      <label class="tm-check js-hidden" id="t_selectAfter_wrap"><input type="checkbox" id="t_selectAfter" checked> เลือกร้านนี้เพื่อเริ่มตรวจทันทีหลังบันทึก</label>
+      <datalist id="dl_tenant_type"></datalist>
+      <datalist id="dl_tenant_floor"></datalist>
+      <button class="btn btn-grad w-full" id="tenantSaveBtn" style="--g1:var(--grad-1a);--g2:var(--grad-1b);" onclick="saveTenant()">💾 บันทึกข้อมูลร้านค้า</button>
     </div>
   </div>
 </div>
@@ -2456,10 +2516,14 @@ function pendingOpsCount(){
   return Object.keys(PENDING_OPS.delInspections).length + Object.keys(PENDING_OPS.delTenants).length
        + Object.keys(PENDING_OPS.saveTenants).length;
 }
-function queueTenantSave(t){
+function queueTenantSave(t, opts){
   const key = normalizeStoreId(t && t.storeId);
   if (!key) return;
-  PENDING_OPS.saveTenants[key] = normalizeTenant(t);
+  const prev = PENDING_OPS.saveTenants[key];
+  const entry = normalizeTenant(t);
+  // v17: ร้านใหม่ที่ยังไม่ยืนยันว่าขึ้น Sheets ให้คงสถานะ "เพิ่มเท่านั้น" ไว้ แม้จะถูกแก้ไขซ้ำก่อนซิงก์
+  if ((opts && opts.createOnly) || (prev && prev.createOnly)) entry.createOnly = true;
+  PENDING_OPS.saveTenants[key] = entry;
   delete PENDING_OPS.delTenants[key];
   savePendingOps();
 }
@@ -4030,9 +4094,17 @@ function renderStorePickerList(){
   const input = document.getElementById('storeSearchInput');
   if (!list || !input) return;
 
+  // v17: แถว "เพิ่มร้านใหม่" ต่อท้ายรายการเสมอ — ร้านเปิดใหม่ที่ยังไม่อยู่ในระบบ เพิ่มได้จากตรงนี้เลย
+  const q = input.value.trim();
+  const addRow = `<div class="sp-add" role="option" data-action="add" id="sp-opt-add">
+      <span class="sp-add-icon">➕</span>
+      <span class="sp-add-text">${q ? `เพิ่ม "<b>${escapeHtml(q)}</b>" เป็นร้านค้าใหม่` : 'ไม่พบร้านที่ต้องการ? เพิ่มร้านค้าใหม่'}</span>
+    </div>`;
+
   if (!TENANTS.length){
     StorePicker.results = [];
-    list.innerHTML = `<div class="sp-empty">ยังไม่มีร้านค้าในระบบ<br>กรุณาให้ผู้ดูแลระบบเพิ่มหรือนำเข้ารายชื่อร้านค้าก่อน<br>หรือกด "🔄 ซิงก์ใหม่" ถ้าเพิ่งเพิ่มร้านจากเครื่องอื่น</div>`;
+    list.innerHTML = `<div class="sp-empty">ยังไม่มีร้านค้าในระบบ<br>กดปุ่มด้านล่างเพื่อเพิ่มร้านแรก
+      หรือให้ผู้ดูแลระบบนำเข้ารายชื่อจากไฟล์<br>(ถ้าเพิ่งเพิ่มร้านจากเครื่องอื่น กด "🔄 ซิงก์ใหม่")</div>` + addRow;
     return;
   }
 
@@ -4042,9 +4114,10 @@ function renderStorePickerList(){
   if (results.length && StorePicker.activeIndex < 0 && rawTokens.length) StorePicker.activeIndex = 0;
 
   if (!results.length){
-    list.innerHTML = `<div class="sp-empty">ไม่พบร้านค้าที่ตรงกับ "<b>${escapeHtml(input.value.trim())}</b>"
+    // v17: ค้นไม่เจอ -> วางแถวเพิ่มร้านไว้ "บนสุด" บนมือถือข้อความยาวดันแถวนี้ไปซ่อนใต้แถบเมนูล่าง
+    list.innerHTML = addRow + `<div class="sp-empty">ไม่พบร้านค้าที่ตรงกับ "<b>${escapeHtml(q)}</b>"
       ${closedMatches ? `<br>พบ ${numFmt(closedMatches)} ร้านที่สถานะ <b>ปิดร้าน (Closed)</b> ซึ่งไม่สามารถเลือกตรวจได้` : ''}
-      <br><span style="font-size:12px;">ลองพิมพ์สั้นลง เช่น บางส่วนของชื่อร้าน หรือเฉพาะตัวเลขของรหัสร้าน</span></div>`;
+      <br><span style="font-size:12px;">ลองพิมพ์สั้นลง หรือเฉพาะตัวเลขของรหัสร้าน · ร้านเปิดใหม่ กด Enter เพื่อเพิ่ม</span></div>`;
     input.removeAttribute('aria-activedescendant');
     return;
   }
@@ -4068,7 +4141,7 @@ function renderStorePickerList(){
       ${truncated ? `แสดง ${numFmt(results.length)} จาก ${numFmt(total)} ร้าน — พิมพ์เพิ่มเพื่อกรองให้แคบลง` : ''}
       ${truncated && closedMatches ? '<br>' : ''}
       ${closedMatches ? `ไม่แสดง ${numFmt(closedMatches)} ร้านที่สถานะปิดร้าน (Closed)` : ''}
-    </div>` : '');
+    </div>` : '') + addRow;
 
   if (StorePicker.activeIndex > -1) input.setAttribute('aria-activedescendant', 'sp-opt-' + StorePicker.activeIndex);
   else input.removeAttribute('aria-activedescendant');
@@ -4117,7 +4190,7 @@ function syncStorePickerDisplay(){
   if (status){
     status.innerHTML = label ? '' : (TENANTS.length
       ? '💡 แตะช่องค้นหาเพื่อดูรายชื่อร้านทั้งหมด หรือพิมพ์บางส่วนของชื่อ/รหัสร้าน · ใช้ปุ่มลูกศร ↑ ↓ และ Enter ได้'
-      : '⚠️ ยังไม่มีร้านค้าในระบบ — กรุณาเพิ่ม/นำเข้าร้านค้าที่เมนู "ข้อมูลร้านค้า" (ผู้ดูแลระบบ)');
+      : '⚠️ ยังไม่มีร้านค้าในระบบ — กด "➕ เพิ่มร้านใหม่" ด้านบน หรือให้ผู้ดูแลระบบนำเข้ารายชื่อที่เมนู "ข้อมูลร้านค้า"');
   }
 }
 
@@ -4225,6 +4298,7 @@ function setupStorePicker(){
       e.preventDefault();
       const idx = StorePicker.activeIndex > -1 ? StorePicker.activeIndex : (n === 1 ? 0 : -1);
       if (idx > -1 && StorePicker.results[idx]) chooseStoreFromPicker(StorePicker.results[idx].storeId);
+      else if (n === 0) openAddStoreFromForm(input.value);   // v17: ค้นไม่เจอ + Enter = เพิ่มร้านใหม่
       else if (n > 1) showToast(`พบ ${numFmt(n)} ร้าน กรุณาเลือกจากรายการ หรือพิมพ์ให้เจาะจงขึ้น`, 'info');
     } else if (e.key === 'Escape'){
       closeStorePicker(); syncStorePickerDisplay(); input.blur();
@@ -4239,6 +4313,8 @@ function setupStorePicker(){
   // mousedown + preventDefault = คลิกรายการโดยไม่ทำให้ช่องค้นหาเสียโฟกัส (เดสก์ท็อป)
   list.addEventListener('mousedown', e=> e.preventDefault());
   list.addEventListener('click', e=>{
+    const add = e.target.closest ? e.target.closest('.sp-add') : null;
+    if (add){ openAddStoreFromForm(input.value); return; }
     const item = e.target.closest ? e.target.closest('.sp-item') : null;
     if (!item) return;
     const t = StorePicker.results[Number(item.dataset.idx)];
@@ -5277,6 +5353,7 @@ function syncFromBackend(manual){
       const r = reconcileTenants(tenantsRes.data);
       TENANTS = r.list;
       resendNeeded = resendNeeded || r.resend;
+      notifyTenantConflicts(r.conflicts);
       persistTenants();
       tenantsOk = true;
     } else if (tenantsRes && tenantsRes.success === false && !lastError){
@@ -5352,10 +5429,17 @@ function reconcileTenants(remoteRaw){
     else delete PENDING_OPS.delTenants[k];
   });
   // 2) การแก้ไข/เพิ่มที่ค้าง: ใช้ค่าในเครื่องจนกว่า Sheets จะตรงกัน
+  //    v17: ร้านที่เพิ่มแบบ createOnly แต่ Sheets มีรหัสนี้ (ค่าไม่ตรง) = มีร้านอื่นใช้รหัสนี้อยู่ก่อน
+  //    Code.gs v8 จะไม่เขียนทับ -> ถ้ายังส่งซ้ำจะวนไม่จบ จึงยอมใช้ข้อมูลจาก Sheets แล้วแจ้งผู้ใช้
+  const conflicts = [];
   Object.keys(PENDING_OPS.saveTenants).forEach(k=>{
     const local = PENDING_OPS.saveTenants[k];
     const r = remoteMap.get(k);
     if (r && tenantEquals(r, local)) delete PENDING_OPS.saveTenants[k];
+    else if (r && local.createOnly){
+      conflicts.push({ storeId: r.storeId, localName: local.name, remoteName: r.name });
+      delete PENDING_OPS.saveTenants[k];
+    }
     else { remoteMap.set(k, normalizeTenant(local)); resend = true; }
   });
 
@@ -5365,7 +5449,7 @@ function reconcileTenants(remoteRaw){
     TENANTS.forEach(t=>{ const k = normalizeStoreId(t.storeId); if (!have.has(k) && !PENDING_OPS.delTenants[k]) list.push(t); });
     console.warn('ชีต Tenants ว่างเปล่า แต่ในเครื่องมีข้อมูลร้าน — คงข้อมูลในเครื่องไว้ ไม่ลบทิ้ง');
   }
-  return { list: cleanTenantList(list), resend };
+  return { list: cleanTenantList(list), resend, conflicts };
 }
 
 /* v16: ผสานผลตรวจ — กติกา
@@ -5804,63 +5888,350 @@ function renderTenantsTable(){
   }
 }
 
-function openTenantModal(storeId){
-  State.editingTenantId = storeId || null;
-  document.getElementById('tenantModalTitle').textContent = storeId ? 'แก้ไขข้อมูลร้านค้า' : 'เพิ่มร้านค้าใหม่';
-  const t = storeId ? findTenant(storeId) : null;
-  document.getElementById('t_storeId').value = t?.storeId || '';
-  document.getElementById('t_storeId').disabled = !!t;
-  document.getElementById('t_name').value = t?.name || '';
-  document.getElementById('t_type').value = t?.type || '';
-  // v16: โซนที่ไม่อยู่ใน 5 ตัวเลือก (เช่น นำเข้าจากไฟล์ว่า "โซน A") ต้องเพิ่มเป็นตัวเลือกก่อน
-  // ไม่งั้น select จะว่าง แล้วกดบันทึก = โซนของร้านถูกเขียนทับเป็นค่าว่างทั้งในเครื่องและ Sheets
-  const zoneSel = document.getElementById('t_zone');
-  const zoneVal = (t && t.zone) || 'โซนอาหาร';
-  if (!Array.from(zoneSel.options).some(o=> o.value === zoneVal)){
-    const opt = document.createElement('option'); opt.value = zoneVal; opt.textContent = zoneVal;
-    zoneSel.appendChild(opt);
+/* ================================================================
+   v17: ฟอร์มข้อมูลร้านค้า (ใช้ร่วม 2 โหมด)
+   - 'admin' : เมนูข้อมูลร้านค้า ของผู้ดูแลระบบ — เพิ่ม/แก้ไขได้ทุกช่อง
+   - 'form'  : เปิดจากหน้า "ฟอร์มตรวจประเมินร้านค้า" — เพิ่มร้านใหม่เท่านั้น สถานะ Active เสมอ
+     (ร้านปิดเลือกตรวจไม่ได้อยู่แล้ว การให้เลือก Closed ในโหมดนี้จึงมีแต่จะทำให้หาร้านไม่เจอ)
+   ================================================================ */
+const TENANT_DEFAULT_ZONES = ['โซนอาหาร','โซนพลาซ่า','โซนไอที','โซนแฟชั่น','โซนบริการ'];
+const TENANT_ZONE_CUSTOM = '__custom__';
+const TenantModal = { mode:'admin', saving:false, session:0 };
+
+/* รหัสร้าน: ตัดช่องว่างหัวท้าย และยุบช่องว่างซ้อนเหลือช่องเดียว
+   (รหัส "A  101" กับ "A 101" ควรเป็นร้านเดียวกัน แต่ normalizeStoreId ไม่ยุบช่องว่างกลางคำ) */
+function cleanStoreIdInput(v){ return String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); }
+
+function isTenantModalOpen(){
+  const m = document.getElementById('tenantModal');
+  return !!m && !m.classList.contains('js-hidden');
+}
+
+/* ตัวเลือกโซน = 5 โซนมาตรฐาน + โซนที่มีใช้จริงในข้อมูลร้าน + "อื่นๆ (พิมพ์เอง)"
+   ร้านที่นำเข้าจากไฟล์อาจใช้ชื่อโซนต่างไป (เช่น "โซน A") ถ้าไม่ใส่เป็นตัวเลือก ผู้ใช้จะเลือกซ้ำไม่ได้ */
+function buildTenantZoneOptions(selected){
+  const sel = document.getElementById('t_zone');
+  if (!sel) return;
+  const zones = TENANT_DEFAULT_ZONES.slice();
+  TENANTS.forEach(t=>{ const z = String(t.zone || '').trim(); if (z && z !== '-' && zones.indexOf(z) < 0) zones.push(z); });
+  if (selected && zones.indexOf(selected) < 0) zones.push(selected);
+  sel.innerHTML = zones.map(z=> `<option value="${escapeHtml(z)}">${escapeHtml(z)}</option>`).join('')
+    + `<option value="${TENANT_ZONE_CUSTOM}">➕ อื่นๆ (พิมพ์เอง)</option>`;
+  sel.value = selected || zones[0];
+  toggleTenantZoneCustom();
+}
+function toggleTenantZoneCustom(){
+  const sel = document.getElementById('t_zone');
+  const custom = document.getElementById('t_zone_custom');
+  if (!sel || !custom) return;
+  const on = sel.value === TENANT_ZONE_CUSTOM;
+  custom.classList.toggle('js-hidden', !on);
+  if (!on) custom.classList.remove('is-invalid');
+}
+/* คำแนะนำประเภทธุรกิจ/ชั้น จากข้อมูลร้านที่มีอยู่ — ช่วยให้สะกดตรงกันทั้งระบบ (สถิติตามโซน/ประเภทจะไม่แตกเป็นหลายกลุ่ม) */
+function buildTenantDatalists(){
+  const fill = (id, field)=>{
+    const dl = document.getElementById(id);
+    if (!dl) return;
+    const set = new Set();
+    TENANTS.forEach(t=>{ const v = String(t[field] || '').trim(); if (v && v !== '-') set.add(v); });
+    dl.innerHTML = Array.from(set).sort((a,b)=> a.localeCompare(b, 'th', { numeric:true }))
+      .slice(0, 200).map(v=> `<option value="${escapeHtml(v)}"></option>`).join('');
+  };
+  fill('dl_tenant_type', 'type');
+  fill('dl_tenant_floor', 'floor');
+}
+
+function setTenantHint(id, text, kind, html){
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'tm-hint' + (kind ? ' is-' + kind : '');
+  if (html) el.innerHTML = text; else el.textContent = text || '';
+}
+
+/* ตรวจรหัสร้านขณะพิมพ์ — คืนข้อความ error (ว่าง = ใช้ได้) */
+function validateTenantIdLive(){
+  const input = document.getElementById('t_storeId');
+  if (!input) return '';
+  if (State.editingTenantId){ setTenantHint('t_storeId_hint', ''); input.classList.remove('is-invalid'); return ''; }
+  const id = cleanStoreIdInput(input.value);
+  let err = '';
+  if (!id){
+    setTenantHint('t_storeId_hint', '');
+  } else if (id.length > 40){
+    err = 'รหัสร้านยาวเกินไป (ไม่เกิน 40 ตัวอักษร)';
+    setTenantHint('t_storeId_hint', err, 'err');
+  } else if (/[\u0000-\u001F<>"`\\]/.test(id)){
+    // อักขระพวกนี้ทำให้ลิงก์/ชื่อไฟล์/สูตรใน Sheets เพี้ยน และไม่มีร้านจริงใช้เป็นรหัส
+    err = 'รหัสร้านมีอักขระที่ใช้ไม่ได้ ( < > " ` \\ )';
+    setTenantHint('t_storeId_hint', err, 'err');
+  } else {
+    const dup = findTenant(id);
+    if (dup){
+      err = 'รหัสร้านนี้มีอยู่ในระบบแล้ว';
+      const active = isTenantActive(dup);
+      const pick = (TenantModal.mode === 'form' && active)
+        ? `<br><button type="button" class="tm-hint-btn" onclick="pickExistingFromTenantModal('${escAttr(dup.storeId)}')">👉 เลือกตรวจร้านนี้แทน</button>` : '';
+      setTenantHint('t_storeId_hint',
+        `⛔ รหัส <b>${escapeHtml(dup.storeId)}</b> มีอยู่แล้ว: ${escapeHtml(dup.name || '-')}` +
+        (active ? '' : ' <b>(สถานะปิดร้าน)</b> — ถ้าร้านกลับมาเปิด ให้ผู้ดูแลระบบแก้สถานะเป็น Active แทนการเพิ่มใหม่') + pick,
+        'err', true);
+    } else {
+      setTenantHint('t_storeId_hint', '✓ รหัสนี้ยังไม่มีในระบบ ใช้ได้', 'ok');
+    }
   }
-  zoneSel.value = zoneVal;
+  input.classList.toggle('is-invalid', !!err);
+  return err;
+}
+
+/* เตือนชื่อร้านคล้ายร้านที่มีอยู่ (ไม่บล็อก — ห้างมีร้านแฟรนไชส์ชื่อเดียวกันหลายสาขาได้จริง) */
+function checkTenantNameLive(){
+  const input = document.getElementById('t_name');
+  if (!input) return;
+  const raw = input.value.trim();
+  if (raw) input.classList.remove('is-invalid');
+  const q = normalizeSearchText(raw);
+  if (q.length < 2){ setTenantHint('t_name_hint', ''); return; }
+  const selfKey = State.editingTenantId ? normalizeStoreId(State.editingTenantId) : '';
+  const similar = TENANTS.filter(t=>{
+    if (selfKey && normalizeStoreId(t.storeId) === selfKey) return false;
+    const n = normalizeSearchText(t.name);
+    return n && (n === q || (q.length >= 3 && (n.indexOf(q) > -1 || q.indexOf(n) > -1) && Math.min(n.length, q.length) >= 3));
+  }).slice(0, 3);
+  if (!similar.length){ setTenantHint('t_name_hint', ''); return; }
+  setTenantHint('t_name_hint',
+    '⚠️ มีร้านชื่อคล้ายกันอยู่แล้ว: ' + similar.map(t=> `<b>${escapeHtml(t.storeId)}</b> ${escapeHtml(t.name)}`).join(', ')
+    + ' — ตรวจสอบให้แน่ใจว่าไม่ใช่ร้านเดียวกัน', 'warn', true);
+}
+
+/* เบอร์โทร: ว่างได้ / ถ้ากรอกต้องมีตัวเลข 9–10 หลัก (บ้าน 02-xxx-xxxx = 9, มือถือ = 10)
+   ยอมให้มี "ต่อ"/ext. ต่อท้าย เพราะร้านในห้างหลายร้านใช้เบอร์ภายใน */
+function validateTenantPhone(){
+  const input = document.getElementById('t_phone');
+  if (!input) return '';
+  const v = input.value.trim();
+  let err = '';
+  if (v){
+    const main = v.split(/ต่อ|ext\.?|#/i)[0];
+    const digits = main.replace(/\D/g, '');
+    if (/[^\d\s\-+().,/ต่อextEXT#]/.test(v)) err = 'เบอร์โทรมีตัวอักษรที่ไม่ใช่ตัวเลข';
+    else if (digits.length < 9 || digits.length > 12) err = `เบอร์โทรควรมีตัวเลข 9–10 หลัก (ตอนนี้ ${digits.length} หลัก)`;
+  }
+  setTenantHint('t_phone_hint', err ? '⛔ ' + err : '', err ? 'err' : '');
+  input.classList.toggle('is-invalid', !!err);
+  return err;
+}
+
+function bindTenantModalOnce(){
+  const m = document.getElementById('tenantModal');
+  if (!m || m.dataset.bound) return;
+  m.dataset.bound = '1';
+  const on = (id, ev, fn)=>{ const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+  on('t_storeId', 'input', validateTenantIdLive);
+  on('t_storeId', 'blur', ()=>{ const el = document.getElementById('t_storeId'); if (el && !el.disabled) el.value = cleanStoreIdInput(el.value); });
+  on('t_name', 'input', checkTenantNameLive);
+  on('t_phone', 'input', ()=>{ if (document.getElementById('t_phone_hint').textContent) validateTenantPhone(); });
+  on('t_phone', 'blur', validateTenantPhone);
+  on('t_zone', 'change', ()=>{
+    toggleTenantZoneCustom();
+    const c = document.getElementById('t_zone_custom');
+    if (document.getElementById('t_zone').value === TENANT_ZONE_CUSTOM && c) setTimeout(()=> c.focus(), 30);
+  });
+  on('t_zone_custom', 'input', ()=> document.getElementById('t_zone_custom').classList.remove('is-invalid'));
+  // Enter ในช่องกรอก = บันทึก (เว้นตอนกำลังพิมพ์ภาษาไทยผ่าน IME / ตอนเลือกคำแนะนำ)
+  m.addEventListener('keydown', e=>{
+    if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+    if (!e.target || e.target.tagName !== 'INPUT' || e.target.type === 'checkbox') return;
+    e.preventDefault();
+    saveTenant();
+  });
+}
+
+/* opts: { mode:'admin'|'form', prefill:{storeId,name} } */
+function openTenantModal(storeId, opts){
+  opts = opts || {};
+  bindTenantModalOnce();
+  TenantModal.session++;
+  TenantModal.mode = opts.mode === 'form' ? 'form' : 'admin';
+  setTenantSaving(false);
+  const isForm = TenantModal.mode === 'form';
+  const t = storeId ? findTenant(storeId) : null;
+  if (storeId && !t){ showToast('ไม่พบร้านค้านี้ในระบบแล้ว (อาจถูกลบระหว่างซิงก์)', 'error'); return; }
+  State.editingTenantId = t ? t.storeId : null;
+  document.getElementById('tenantModalTitle').textContent = t ? 'แก้ไขข้อมูลร้านค้า' : (isForm ? '➕ เพิ่มร้านค้าใหม่ (เพื่อตรวจประเมิน)' : 'เพิ่มร้านค้าใหม่');
+  document.getElementById('tenantModalBanner').classList.toggle('js-hidden', !isForm);
+  document.getElementById('t_status_wrap').classList.toggle('js-hidden', isForm);
+  document.getElementById('t_selectAfter_wrap').classList.toggle('js-hidden', !isForm);
+  document.getElementById('t_selectAfter').checked = true;
+
+  const pre = opts.prefill || {};
+  document.getElementById('t_storeId').value = t ? t.storeId : (pre.storeId || '');
+  document.getElementById('t_storeId').disabled = !!t;
+  document.getElementById('t_name').value = t ? (t.name || '') : (pre.name || '');
+  document.getElementById('t_type').value = t?.type || '';
+  // v16: โซนที่ไม่อยู่ในตัวเลือกมาตรฐาน ต้องเพิ่มเป็นตัวเลือกก่อน ไม่งั้น select ว่างแล้วบันทึกทับเป็นค่าว่าง
+  buildTenantZoneOptions((t && t.zone && t.zone !== '-') ? t.zone : 'โซนอาหาร');
+  document.getElementById('t_zone_custom').value = '';
   document.getElementById('t_floor').value = t?.floor || '';
   document.getElementById('t_contact').value = t?.contact || '';
   document.getElementById('t_phone').value = t?.phone || '';
   document.getElementById('t_status').value = t ? normalizeTenantStatus(t.status) : 'Active';
+  buildTenantDatalists();
+  ['t_storeId','t_name','t_phone','t_zone_custom'].forEach(id=> document.getElementById(id).classList.remove('is-invalid'));
+  setTenantHint('t_storeId_hint', ''); setTenantHint('t_name_hint', ''); setTenantHint('t_phone_hint', '');
+  if (!t){ validateTenantIdLive(); checkTenantNameLive(); }
+
   document.getElementById('tenantModal').classList.remove('js-hidden');
+  // โฟกัสช่องแรกที่ยังว่าง — บนมือถือจะเด้งแป้นพิมพ์ให้พิมพ์ต่อได้ทันที
+  setTimeout(()=>{
+    if (!isTenantModalOpen()) return;
+    const first = ['t_storeId','t_name','t_type'].map(id=> document.getElementById(id)).find(el=> el && !el.disabled && !el.value.trim());
+    try { (first || document.getElementById('t_name')).focus(); } catch(err){ /* ข้าม */ }
+  }, 80);
 }
-function closeTenantModal(){ document.getElementById('tenantModal').classList.add('js-hidden'); }
+function closeTenantModal(){
+  TenantModal.session++;           // ยกเลิกการบันทึกที่ค้างรอผลตรวจรหัสซ้ำจาก Sheets
+  setTenantSaving(false);
+  TenantModal.mode = 'admin';
+  document.getElementById('tenantModal').classList.add('js-hidden');
+}
 
-function saveTenant(){
-  const storeId = document.getElementById('t_storeId').value.trim();
-  const name = document.getElementById('t_name').value.trim();
-  if (!storeId || !name){ showToast('กรุณากรอกรหัสร้านและชื่อร้านให้ครบถ้วน', 'error'); return; }
-  if (storeId.length > 40){ showToast('รหัสร้านยาวเกินไป (ไม่เกิน 40 ตัวอักษร)', 'error'); return; }
+function setTenantSaving(on, label){
+  TenantModal.saving = !!on;
+  const btn = document.getElementById('tenantSaveBtn');
+  if (!btn) return;
+  btn.disabled = !!on;
+  btn.style.opacity = on ? '.7' : '1';
+  btn.innerHTML = on ? `<span class="spinner"></span> ${escapeHtml(label || 'กำลังบันทึก...')}` : '💾 บันทึกข้อมูลร้านค้า';
+}
 
-  const data = {
-    storeId, name,
-    type: document.getElementById('t_type').value.trim(),
-    zone: document.getElementById('t_zone').value,
-    floor: document.getElementById('t_floor').value.trim(),
-    contact: document.getElementById('t_contact').value.trim(),
-    phone: document.getElementById('t_phone').value.trim(),
-    status: document.getElementById('t_status').value,
-  };
-
-  data.status = normalizeTenantStatus(data.status);
-  if (State.editingTenantId){
-    const idx = TENANTS.findIndex(t=> normalizeStoreId(t.storeId) === normalizeStoreId(State.editingTenantId));
-    // ร้านอาจหายไประหว่างเปิดหน้าแก้ไข (ซิงก์เบื้องหลังตัดออก) — เพิ่มกลับแทนการทิ้งข้อมูลที่แก้เงียบๆ
-    if (idx > -1) TENANTS[idx] = data; else TENANTS.push(data);
-  } else {
-    if (TENANTS.some(t=>normalizeStoreId(t.storeId)===normalizeStoreId(storeId))){ showToast('รหัสร้านนี้มีอยู่ในระบบแล้ว','error'); return; }
-    TENANTS.push(data);
+/* เปิดฟอร์มเพิ่มร้านจากหน้าฟอร์มตรวจ — เติมคำที่ค้นหาไว้ให้
+   ดูเหมือนรหัส (สั้น มีตัวเลข ไม่มีภาษาไทย เช่น "B-205", "1F-12") -> ช่องรหัส / นอกนั้น -> ช่องชื่อร้าน */
+function openAddStoreFromForm(query){
+  const q = String(query == null ? '' : query).replace(/\s+/g, ' ').trim();
+  const prefill = {};
+  if (q){
+    const looksLikeId = q.length <= 15 && /\d/.test(q) && !/[฀-๿]/.test(q) && q.split(' ').length <= 2;
+    if (looksLikeId) prefill.storeId = q.toUpperCase(); else prefill.name = q;
   }
-  persistTenants(); // บันทึกลงเครื่องทันที กันข้อมูลหายเมื่อรีเฟรช/ปิดแท็บ
-  queueTenantSave(data);                    // v16: ติดตามจนกว่า Sheets จะมีค่าตรงกัน
-  postTenantToBackend('saveTenant', data); // ซิงก์ไป Google Sheets ด้วย (fire-and-forget)
+  closeStorePicker();
+  const input = document.getElementById('storeSearchInput');
+  if (input) input.blur();
+  syncStorePickerDisplay();
+  openTenantModal(null, { mode:'form', prefill });
+}
+
+/* รหัสที่พิมพ์ซ้ำกับร้านที่มีอยู่ -> ผู้ใช้เลือกตรวจร้านเดิมแทน */
+function pickExistingFromTenantModal(storeId){
+  closeTenantModal();
+  chooseStoreFromPicker(storeId);
+}
+
+/* ดึงรายชื่อร้านล่าสุดจาก Sheets (เฉพาะร้านค้า) — ใช้ตรวจรหัสซ้ำก่อนเพิ่มร้านใหม่
+   คืน true เมื่อได้ข้อมูลล่าสุดจริง / false เมื่อออฟไลน์-หมดเวลา-ตอบกลับผิดรูปแบบ (จะตรวจกับข้อมูลในเครื่องแทน) */
+function refreshTenantsFromSheet(timeoutMs){
+  if (!isBackendConfigured() || navigator.onLine === false) return Promise.resolve(false);
+  return fetchWithTimeout(`${getBackendUrl()}?action=getTenants`, undefined, timeoutMs || 10000)
+    .then(res=> readJsonSafe(res, 'getTenants'))
+    .then(json=>{
+      if (!json || !json.success || !Array.isArray(json.data)) return false;
+      const r = reconcileTenants(json.data);
+      TENANTS = r.list;
+      persistTenants();
+      savePendingOps();
+      notifyTenantConflicts(r.conflicts);
+      try { populateStoreSelect(); } catch(err){ console.error('populateStoreSelect error:', err); }
+      return true;
+    })
+    .catch(err=>{ console.warn('ดึงรายชื่อร้านล่าสุดไม่สำเร็จ — ตรวจรหัสซ้ำกับข้อมูลในเครื่องแทน:', err); return false; });
+}
+
+async function saveTenant(){
+  if (TenantModal.saving) return;   // กันกด Enter/ปุ่มรัวๆ ระหว่างรอผลตรวจจาก Sheets
+  const isForm = TenantModal.mode === 'form';
+  const isNew = !State.editingTenantId;
+  const idInput = document.getElementById('t_storeId');
+  const storeId = isNew ? cleanStoreIdInput(idInput.value) : State.editingTenantId;
+  const name = document.getElementById('t_name').value.replace(/\s+/g, ' ').trim();
+  if (isNew) idInput.value = storeId;
+
+  // ---- ตรวจความครบถ้วน (แจ้งทีละช่องพร้อมโฟกัสช่องที่ผิด) ----
+  const fail = (id, msg)=>{
+    const el = document.getElementById(id);
+    if (el){ el.classList.add('is-invalid'); try { el.focus(); } catch(e){} }
+    showToast(msg, 'error');
+  };
+  if (!storeId) return fail('t_storeId', 'กรุณากรอกรหัสร้าน');
+  if (isNew){ const idErr = validateTenantIdLive(); if (idErr) return fail('t_storeId', idErr); }
+  if (!name) return fail('t_name', 'กรุณากรอกชื่อร้านค้า');
+  const zoneSel = document.getElementById('t_zone').value;
+  const zone = zoneSel === TENANT_ZONE_CUSTOM ? document.getElementById('t_zone_custom').value.replace(/\s+/g, ' ').trim() : zoneSel;
+  if (!zone) return fail('t_zone_custom', 'กรุณาพิมพ์ชื่อโซน หรือเลือกโซนจากรายการ');
+  const phoneErr = validateTenantPhone();
+  if (phoneErr) return fail('t_phone', phoneErr);
+
+  const data = normalizeTenant({
+    storeId, name,
+    type: document.getElementById('t_type').value,
+    zone,
+    floor: document.getElementById('t_floor').value,
+    contact: document.getElementById('t_contact').value,
+    phone: document.getElementById('t_phone').value,
+    // ร้านที่เพิ่มจากหน้าฟอร์มตรวจ = ร้านที่กำลังจะเข้าตรวจ จึงต้อง Active เสมอ
+    status: isForm ? 'Active' : document.getElementById('t_status').value,
+  });
+  const selectAfter = isForm && document.getElementById('t_selectAfter').checked;
+
+  // ---- ร้านใหม่: ตรวจรหัสซ้ำกับ Sheets ล่าสุดก่อน (เครื่องอื่นอาจเพิ่มรหัสนี้ไปแล้วแต่เครื่องนี้ยังไม่ซิงก์) ----
+  let checkedRemote = false;
+  if (isNew){
+    const session = TenantModal.session;
+    setTenantSaving(true, 'กำลังตรวจรหัสซ้ำกับ Google Sheets...');
+    checkedRemote = await refreshTenantsFromSheet(10000);
+    if (session !== TenantModal.session) return;   // ผู้ใช้ปิดหน้าต่างไประหว่างรอ — ไม่บันทึก
+    setTenantSaving(false);
+    if (findTenant(storeId)){
+      validateTenantIdLive();
+      return fail('t_storeId', checkedRemote
+        ? 'รหัสร้านนี้เพิ่งถูกเพิ่มใน Google Sheets จากเครื่องอื่น — กรุณาตรวจสอบหรือใช้รหัสอื่น'
+        : 'รหัสร้านนี้มีอยู่ในระบบแล้ว');
+    }
+  }
+
+  try {
+    if (!isNew){
+      const idx = TENANTS.findIndex(t=> normalizeStoreId(t.storeId) === normalizeStoreId(State.editingTenantId));
+      // ร้านอาจหายไประหว่างเปิดหน้าแก้ไข (ซิงก์เบื้องหลังตัดออก) — เพิ่มกลับแทนการทิ้งข้อมูลที่แก้เงียบๆ
+      if (idx > -1) TENANTS[idx] = data; else TENANTS.push(data);
+    } else {
+      TENANTS.push(data);
+    }
+    persistTenants(); // บันทึกลงเครื่องทันที กันข้อมูลหายเมื่อรีเฟรช/ปิดแท็บ
+    // v17: ร้านใหม่ส่งแบบ createOnly — ถ้า Sheets มีรหัสนี้แล้ว (เพิ่มตอนออฟไลน์) จะไม่เขียนทับร้านของคนอื่น
+    queueTenantSave(data, { createOnly: isNew });
+    postTenantToBackend('saveTenant', Object.assign({}, data, isNew ? { createOnly:true } : {}));
+  } catch(err){
+    console.error('saveTenant error:', err);
+    Swal.fire({ icon:'error', title:'บันทึกข้อมูลร้านค้าไม่สำเร็จ', text:String(err && err.message || err), confirmButtonColor:'#C9971B' });
+    return;
+  }
+
   safeRefreshUI();
   try { populateStoreSelect(); } catch(err){ console.error('populateStoreSelect error:', err); }
+  try { syncStorePickerDisplay(); } catch(err){ /* ข้าม */ }
   closeTenantModal();
-  showToast('บันทึกข้อมูลร้านค้าสำเร็จ', 'success');
+
+  const where = !isBackendConfigured() ? ' (บันทึกในเครื่องนี้ — ยังไม่ได้ตั้งค่า Google Sheets)'
+    : (isNew && !checkedRemote) ? ' — ออฟไลน์อยู่ จะส่งขึ้น Google Sheets ให้อัตโนมัติเมื่อเชื่อมต่อได้' : '';
+  showToast(`${isNew ? 'เพิ่มร้าน' : 'บันทึกข้อมูลร้าน'} ${data.storeId} — ${data.name} เรียบร้อย${where}`, where ? 'warning' : 'success');
+  if (selectAfter) setTimeout(()=> chooseStoreFromPicker(data.storeId), 150);
+}
+
+/* แจ้งร้านที่เพิ่มตอนออฟไลน์แต่รหัสชนกับร้านที่มีใน Sheets อยู่ก่อน (ระบบใช้ข้อมูลจาก Sheets) */
+function notifyTenantConflicts(conflicts){
+  if (!conflicts || !conflicts.length) return;
+  const list = conflicts.slice(0, 5).map(c=> `${c.storeId}: "${c.localName}" → ใช้ "${c.remoteName}" ตาม Sheets`).join(' · ');
+  showToast(`⚠️ รหัสร้านซ้ำกับข้อมูลใน Google Sheets ${conflicts.length} ร้าน — ${list} (ถ้าเป็นคนละร้าน ให้เพิ่มใหม่ด้วยรหัสอื่น)`, 'warning');
 }
 
 function deleteTenant(storeId){
